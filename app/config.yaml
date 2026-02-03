@@ -1,0 +1,19 @@
+chat:
+  quick_prompts:
+    scout:
+      - "Tell me about yourself"
+      - "What's our PTO policy?"
+      - "How do I deploy to production?"
+      - "What are our Q4 OKRs?"
+    reasoning-scout:
+      - "Tell me about yourself"
+      - "Find all information about our system architecture"
+      - "What are the data retention requirements and why?"
+    dash:
+      - "Tell me about yourself"
+      - "Who won the most races in 2019?"
+      - "Who won the most F1 World Championships?"
+    reasoning-dash:
+      - "Tell me about yourself"
+      - "Who won the most races in 2019?"
+      - "Who won the most F1 World Championships?"
