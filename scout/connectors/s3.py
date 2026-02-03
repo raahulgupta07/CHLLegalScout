@@ -8,43 +8,59 @@ from typing import Any
 from scout.connectors.base import BaseConnector
 
 # Mock data simulating a typical company's S3 knowledge base
-MOCK_BUCKETS = [
+MOCK_BUCKETS: list[dict[str, Any]] = [
     {"name": "company-docs", "region": "us-east-1", "description": "Company documents and policies"},
     {"name": "engineering-docs", "region": "us-east-1", "description": "Engineering documentation"},
     {"name": "data-exports", "region": "us-east-1", "description": "Data exports and reports"},
 ]
 
-MOCK_FILES = {
+MOCK_FILES: dict[str, list[dict[str, Any]]] = {
     "company-docs": [
         {"key": "policies/employee-handbook.md", "size": 45000, "modified": "2024-01-15"},
         {"key": "policies/pto-policy.md", "size": 8500, "modified": "2024-02-01"},
         {"key": "policies/data-retention.md", "size": 12000, "modified": "2024-03-10"},
         {"key": "policies/security-policy.md", "size": 25000, "modified": "2024-01-20"},
+        {"key": "policies/remote-work-policy.md", "size": 6000, "modified": "2024-02-15"},
         {"key": "hr/benefits-guide.md", "size": 18000, "modified": "2024-02-15"},
         {"key": "hr/onboarding-checklist.md", "size": 5000, "modified": "2024-03-01"},
+        {"key": "hr/expense-policy.md", "size": 4500, "modified": "2024-01-10"},
         {"key": "planning/q4-2024-okrs.md", "size": 15000, "modified": "2024-10-01"},
         {"key": "planning/q3-2024-okrs.md", "size": 14000, "modified": "2024-07-01"},
         {"key": "planning/2024-strategy.md", "size": 28000, "modified": "2024-01-05"},
+        {"key": "planning/budget-2024.md", "size": 8000, "modified": "2024-01-15"},
     ],
     "engineering-docs": [
         {"key": "architecture/system-overview.md", "size": 35000, "modified": "2024-04-20"},
         {"key": "architecture/api-design.md", "size": 22000, "modified": "2024-05-15"},
+        {"key": "architecture/database-schema.md", "size": 18000, "modified": "2024-03-20"},
+        {"key": "architecture/security-architecture.md", "size": 15000, "modified": "2024-04-01"},
         {"key": "runbooks/deployment.md", "size": 18000, "modified": "2024-03-01"},
         {"key": "runbooks/incident-response.md", "size": 25000, "modified": "2024-03-15"},
         {"key": "runbooks/oncall-guide.md", "size": 12000, "modified": "2024-04-01"},
+        {"key": "runbooks/database-maintenance.md", "size": 10000, "modified": "2024-02-20"},
+        {"key": "runbooks/rollback-procedures.md", "size": 8000, "modified": "2024-03-10"},
         {"key": "guides/getting-started.md", "size": 8000, "modified": "2024-05-01"},
         {"key": "guides/code-review.md", "size": 10000, "modified": "2024-04-15"},
+        {"key": "guides/testing-guide.md", "size": 12000, "modified": "2024-04-20"},
+        {"key": "guides/api-development.md", "size": 15000, "modified": "2024-05-10"},
         {"key": "rfcs/rfc-001-search-redesign.md", "size": 20000, "modified": "2024-05-20"},
         {"key": "rfcs/rfc-002-api-v2.md", "size": 18000, "modified": "2024-06-01"},
+        {"key": "rfcs/rfc-003-auth-overhaul.md", "size": 16000, "modified": "2024-06-15"},
     ],
     "data-exports": [
-        {"key": "reports/monthly-metrics-2024-05.csv", "size": 50000, "modified": "2024-06-01"},
+        {"key": "reports/monthly-metrics-2024-01.csv", "size": 45000, "modified": "2024-02-01"},
+        {"key": "reports/monthly-metrics-2024-02.csv", "size": 48000, "modified": "2024-03-01"},
+        {"key": "reports/monthly-metrics-2024-03.csv", "size": 52000, "modified": "2024-04-01"},
+        {"key": "reports/monthly-metrics-2024-04.csv", "size": 50000, "modified": "2024-05-01"},
+        {"key": "reports/monthly-metrics-2024-05.csv", "size": 55000, "modified": "2024-06-01"},
         {"key": "reports/quarterly-review-q1-2024.md", "size": 30000, "modified": "2024-04-15"},
+        {"key": "reports/quarterly-review-q2-2024.md", "size": 32000, "modified": "2024-07-15"},
         {"key": "exports/user-data-export.json", "size": 100000, "modified": "2024-06-01"},
+        {"key": "exports/analytics-dashboard.json", "size": 25000, "modified": "2024-06-01"},
     ],
 }
 
-MOCK_CONTENTS = {
+MOCK_CONTENTS: dict[str, str] = {
     "company-docs/policies/employee-handbook.md": """# Employee Handbook
 
 ## Welcome to Acme Corp
@@ -223,6 +239,127 @@ This policy complies with:
 
 Last updated: March 2024
 Contact: legal@acme.com
+""",
+    "company-docs/policies/security-policy.md": """# Security Policy
+
+## Overview
+This policy outlines security requirements for all Acme Corp employees.
+
+## Access Control
+
+### Authentication
+- All systems require SSO authentication
+- MFA is mandatory for all accounts
+- Passwords must be at least 12 characters
+- Password rotation every 90 days
+
+### Authorization
+- Principle of least privilege
+- Access reviews quarterly
+- Immediate revocation on termination
+
+## Device Security
+
+### Company Devices
+- Full disk encryption required
+- Automatic screen lock after 5 minutes
+- Remote wipe capability enabled
+- No unapproved software installation
+
+### Personal Devices (BYOD)
+- Must be enrolled in MDM
+- Company data must be encrypted
+- Separate work profile required
+
+## Data Classification
+
+| Level | Description | Examples | Requirements |
+|-------|-------------|----------|--------------|
+| Public | Safe to share externally | Marketing materials | None |
+| Internal | Company-wide access | Policies, guides | SSO required |
+| Confidential | Need-to-know basis | Financial data, PII | MFA + encryption |
+| Restricted | Highly sensitive | Security keys, credentials | Hardware key + audit |
+
+## Incident Reporting
+
+Report security incidents immediately to:
+- Email: security@acme.com
+- Slack: #security-incidents
+- PagerDuty: Security on-call
+
+## Training
+
+All employees must complete:
+- Security awareness training (annual)
+- Phishing simulation (quarterly)
+- Role-specific training (as needed)
+
+Last updated: January 2024
+Contact: security@acme.com
+""",
+    "company-docs/hr/benefits-guide.md": """# Benefits Guide
+
+## Overview
+Acme Corp offers comprehensive benefits to all full-time employees.
+
+## Health Insurance
+
+### Medical
+- Provider: Blue Cross Blue Shield
+- Plans: PPO, HMO, HDHP
+- Coverage: Employee, Employee + Spouse, Family
+- Company pays: 90% of premium
+
+### Dental
+- Provider: Delta Dental
+- Coverage: Preventive 100%, Basic 80%, Major 50%
+- Annual maximum: $2,000
+
+### Vision
+- Provider: VSP
+- Coverage: Annual exam, frames, lenses/contacts
+- Frame allowance: $200
+
+## 401(k) Retirement Plan
+
+- Provider: Fidelity
+- Company match: 100% up to 4% of salary
+- Vesting: Immediate
+- Contribution limit: IRS annual limit ($23,000 in 2024)
+
+## Life & Disability Insurance
+
+### Life Insurance
+- Basic: 2x annual salary (company paid)
+- Supplemental: Up to 5x salary (employee paid)
+
+### Disability
+- Short-term: 60% of salary, up to 12 weeks
+- Long-term: 60% of salary, after 12 weeks
+
+## Other Benefits
+
+### Professional Development
+- Annual budget: $2,500 per employee
+- Covers: Courses, conferences, certifications, books
+
+### Wellness
+- Gym membership reimbursement: $100/month
+- Mental health: Free therapy sessions (up to 12/year)
+- Wellness days: 2 per year (in addition to PTO)
+
+### Perks
+- Commuter benefits: Pre-tax transit/parking
+- Cell phone: $75/month reimbursement
+- Meals: Catered lunch 3x/week in office
+
+## Enrollment
+
+- New hires: Enroll within 30 days of start date
+- Annual enrollment: November 1-15
+- Qualifying life events: 30 days to make changes
+
+Contact: benefits@acme.com
 """,
     "company-docs/planning/q4-2024-okrs.md": """# Q4 2024 Company OKRs
 
@@ -641,6 +778,319 @@ All new features behind flags:
 - [API Design Guide](/engineering-docs/architecture/api-design.md)
 - [Database Schema](/engineering-docs/architecture/database-schema.md)
 - [Security Architecture](/engineering-docs/architecture/security.md)
+""",
+    "engineering-docs/architecture/api-design.md": """# API Design Guide
+
+## Overview
+This document describes our API design standards and conventions.
+
+## REST Principles
+
+### Resource Naming
+- Use plural nouns: `/users`, `/documents`, `/teams`
+- Use kebab-case for multi-word resources: `/user-preferences`
+- Nest resources logically: `/users/{id}/documents`
+
+### HTTP Methods
+| Method | Usage | Example |
+|--------|-------|---------|
+| GET | Read | `GET /users/123` |
+| POST | Create | `POST /users` |
+| PUT | Full update | `PUT /users/123` |
+| PATCH | Partial update | `PATCH /users/123` |
+| DELETE | Delete | `DELETE /users/123` |
+
+### Status Codes
+| Code | Usage |
+|------|-------|
+| 200 | Success |
+| 201 | Created |
+| 204 | No Content (DELETE) |
+| 400 | Bad Request |
+| 401 | Unauthorized |
+| 403 | Forbidden |
+| 404 | Not Found |
+| 422 | Validation Error |
+| 429 | Rate Limited |
+| 500 | Server Error |
+
+## Request/Response Format
+
+### Request Headers
+```
+Content-Type: application/json
+Authorization: Bearer <token>
+X-Request-ID: <uuid>
+```
+
+### Response Format
+```json
+{
+  "data": { ... },
+  "meta": {
+    "request_id": "uuid",
+    "timestamp": "ISO8601"
+  }
+}
+```
+
+### Error Format
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Human readable message",
+    "details": [
+      {"field": "email", "message": "Invalid format"}
+    ]
+  },
+  "meta": {
+    "request_id": "uuid"
+  }
+}
+```
+
+## Pagination
+
+### Request
+```
+GET /users?page=2&per_page=25
+```
+
+### Response
+```json
+{
+  "data": [...],
+  "meta": {
+    "page": 2,
+    "per_page": 25,
+    "total": 100,
+    "total_pages": 4
+  }
+}
+```
+
+## Filtering & Sorting
+
+### Filtering
+```
+GET /users?status=active&role=admin
+GET /users?created_after=2024-01-01
+```
+
+### Sorting
+```
+GET /users?sort=created_at&order=desc
+GET /users?sort=-created_at  # shorthand
+```
+
+## Rate Limiting
+
+- Default: 1000 requests/minute
+- Auth endpoints: 10 requests/minute
+- Headers returned:
+  - `X-RateLimit-Limit`
+  - `X-RateLimit-Remaining`
+  - `X-RateLimit-Reset`
+
+## Versioning
+
+- Version in URL: `/api/v1/users`
+- Major versions only
+- Deprecation: 6 months notice
+
+## Authentication
+
+See [Security Architecture](/engineering-docs/architecture/security.md) for details.
+""",
+    "engineering-docs/guides/testing-guide.md": """# Testing Guide
+
+## Overview
+This guide covers our testing practices and standards.
+
+## Test Pyramid
+
+```
+        ╱╲
+       ╱  ╲       E2E Tests (10%)
+      ╱────╲      - Critical user flows
+     ╱      ╲
+    ╱────────╲    Integration Tests (30%)
+   ╱          ╲   - API endpoints, database
+  ╱────────────╲
+ ╱              ╲ Unit Tests (60%)
+╱________________╲- Functions, classes, modules
+```
+
+## Unit Tests
+
+### When to Write
+- Every new function/method
+- Bug fixes (test first!)
+- Complex business logic
+
+### Best Practices
+```python
+# Good: descriptive name, single assertion
+def test_user_can_be_created_with_valid_email():
+    user = User.create(email="test@example.com")
+    assert user.email == "test@example.com"
+
+# Bad: vague name, multiple unrelated assertions
+def test_user():
+    user = User.create(email="test@example.com")
+    assert user.email == "test@example.com"
+    assert user.is_active
+    assert user.created_at is not None
+```
+
+### Coverage Requirements
+- Minimum: 80% coverage
+- Critical paths: 100% coverage
+- New code: 90% coverage
+
+## Integration Tests
+
+### API Tests
+```python
+def test_create_user_endpoint():
+    response = client.post("/api/v1/users", json={
+        "email": "test@example.com",
+        "name": "Test User"
+    })
+    assert response.status_code == 201
+    assert response.json()["data"]["email"] == "test@example.com"
+```
+
+### Database Tests
+- Use test database
+- Rollback after each test
+- Use factories for test data
+
+## E2E Tests
+
+### When to Write
+- Critical user journeys
+- Cross-service workflows
+- Regression prevention
+
+### Tools
+- Playwright for UI
+- pytest for API
+- Custom fixtures for setup
+
+## Running Tests
+
+```bash
+# All tests
+pytest
+
+# Unit tests only
+pytest tests/unit/
+
+# With coverage
+pytest --cov=src --cov-report=html
+
+# Specific file
+pytest tests/test_users.py
+
+# Watch mode
+pytest-watch
+```
+
+## CI/CD Integration
+
+Tests run on every PR:
+1. Lint (ruff)
+2. Type check (mypy)
+3. Unit tests
+4. Integration tests
+5. E2E tests (main branch only)
+
+## Test Data
+
+### Factories
+```python
+class UserFactory:
+    @staticmethod
+    def create(**kwargs):
+        defaults = {
+            "email": f"user-{uuid4()}@test.com",
+            "name": "Test User"
+        }
+        return User.create(**{**defaults, **kwargs})
+```
+
+### Fixtures
+```python
+@pytest.fixture
+def authenticated_user():
+    user = UserFactory.create()
+    token = create_token(user)
+    return user, token
+```
+""",
+    "engineering-docs/rfcs/rfc-001-search-redesign.md": """# RFC-001: Search Redesign
+
+## Metadata
+- **Status:** Approved
+- **Author:** Sarah Chen
+- **Created:** 2024-05-01
+- **Updated:** 2024-05-20
+- **Decision:** Approved on 2024-05-20
+
+## Summary
+Redesign our search infrastructure to improve relevance and reduce latency.
+
+## Problem Statement
+Current search has several issues:
+1. Average latency is 500ms (target: <200ms)
+2. Relevance scores are inconsistent
+3. No support for typo tolerance
+4. Faceted search is slow
+
+## Proposed Solution
+
+### Architecture
+Replace current Elasticsearch setup with a tiered approach:
+1. **Hot tier:** Recent data (last 30 days) on SSD
+2. **Warm tier:** Older data on HDD
+3. **Cold tier:** Archive data in S3
+
+### Improvements
+1. Add typo tolerance using Elasticsearch fuzzy matching
+2. Implement query caching with Redis
+3. Add search analytics for relevance tuning
+4. Pre-compute facet counts nightly
+
+### Timeline
+- Week 1-2: Infrastructure setup
+- Week 3-4: Migration tooling
+- Week 5-6: Gradual rollout
+- Week 7-8: Monitoring and tuning
+
+## Alternatives Considered
+
+### Option A: Algolia
+- Pros: Managed, fast, great relevance
+- Cons: Expensive at scale, vendor lock-in
+
+### Option B: Typesense
+- Pros: Open source, fast
+- Cons: Less mature, smaller community
+
+### Option C: Elasticsearch optimization (chosen)
+- Pros: Keep existing expertise, no migration risk
+- Cons: More work, but better long-term control
+
+## Decision
+Approved Option C. The team has deep Elasticsearch expertise and the improvements are achievable within timeline.
+
+## Success Metrics
+- P50 latency < 100ms
+- P99 latency < 300ms
+- Relevance score (measured by CTR) +20%
+- Zero downtime during migration
 """,
 }
 

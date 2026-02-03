@@ -12,12 +12,6 @@ from scout.context.source_registry import SOURCE_REGISTRY
 
 def create_list_sources_tool():
     """Create list_sources tool."""
-    connectors = {
-        "s3": S3Connector(),
-        "google_drive": GoogleDriveConnector(),
-        "notion": NotionConnector(),
-        "slack": SlackConnector(),
-    }
 
     @tool
     def list_sources(

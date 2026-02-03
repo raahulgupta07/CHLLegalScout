@@ -5,7 +5,7 @@ from typing import Any
 from scout.connectors.base import BaseConnector
 
 # Mock data simulating a typical company's Notion workspace
-MOCK_PAGES = {
+MOCK_PAGES: dict[str, list[dict[str, Any]]] = {
     "root": [
         {"id": "wiki_eng", "name": "Engineering Wiki", "type": "page", "icon": "🔧"},
         {"id": "wiki_product", "name": "Product Wiki", "type": "page", "icon": "📦"},
@@ -27,7 +27,7 @@ MOCK_PAGES = {
     ],
 }
 
-MOCK_PAGE_CONTENT = {
+MOCK_PAGE_CONTENT: dict[str, dict[str, Any]] = {
     "page_arch": {
         "title": "Architecture",
         "content": """# Architecture Overview
@@ -223,7 +223,7 @@ A: See the Deployment Runbook in this wiki
     },
 }
 
-MOCK_DATABASE_ENTRIES = {
+MOCK_DATABASE_ENTRIES: dict[str, list[dict[str, Any]]] = {
     "db_projects": [
         {
             "id": "proj_1",

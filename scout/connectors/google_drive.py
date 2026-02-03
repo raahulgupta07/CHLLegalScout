@@ -5,7 +5,7 @@ from typing import Any
 from scout.connectors.base import BaseConnector
 
 # Mock data simulating a typical company's Google Drive
-MOCK_FOLDERS = {
+MOCK_FOLDERS: dict[str, list[dict[str, Any]]] = {
     "root": [
         {"id": "hr_folder", "name": "HR & People Ops", "type": "folder"},
         {"id": "eng_folder", "name": "Engineering", "type": "folder"},
@@ -38,7 +38,7 @@ MOCK_FOLDERS = {
     ],
 }
 
-MOCK_DOCUMENTS = {
+MOCK_DOCUMENTS: dict[str, dict[str, Any]] = {
     "doc_handbook": {
         "title": "Employee Handbook",
         "content": """# Employee Handbook

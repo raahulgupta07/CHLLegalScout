@@ -2,7 +2,7 @@
 Scout API
 =========
 
-Production deployment entry point for Scout (and Dash for backwards compatibility).
+Production deployment entry point for Scout.
 
 Run:
     python -m app.main
@@ -13,7 +13,6 @@ from pathlib import Path
 
 from agno.os import AgentOS
 
-from dash.agents import dash, dash_knowledge, reasoning_dash
 from db import get_postgres_db
 from scout.agents import reasoning_scout, scout, scout_knowledge
 
@@ -24,8 +23,8 @@ agent_os = AgentOS(
     name="Scout",
     tracing=True,
     db=get_postgres_db(),
-    agents=[scout, reasoning_scout, dash, reasoning_dash],
-    knowledge=[scout_knowledge, dash_knowledge],
+    agents=[scout, reasoning_scout],
+    knowledge=[scout_knowledge],
     config=str(Path(__file__).parent / "config.yaml"),
 )
 

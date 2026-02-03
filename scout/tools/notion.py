@@ -163,7 +163,7 @@ class NotionTools(Toolkit):
         if not entries:
             return "No entries found."
 
-        lines = [f"## Database Query Results", ""]
+        lines = ["## Database Query Results", ""]
         for entry in entries:
             lines.append(f"### {entry.get('name', entry.get('id'))}")
             for key, value in entry.items():

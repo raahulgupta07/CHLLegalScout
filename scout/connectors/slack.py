@@ -5,7 +5,7 @@ from typing import Any
 from scout.connectors.base import BaseConnector
 
 # Mock data simulating a typical company's Slack workspace
-MOCK_CHANNELS = [
+MOCK_CHANNELS: list[dict[str, Any]] = [
     {"id": "ch_general", "name": "general", "type": "public", "members": 150, "topic": "Company-wide announcements"},
     {"id": "ch_engineering", "name": "engineering", "type": "public", "members": 45, "topic": "Engineering discussions"},
     {
@@ -21,7 +21,7 @@ MOCK_CHANNELS = [
     {"id": "ch_announcements", "name": "announcements", "type": "public", "members": 150, "topic": "Official announcements"},
 ]
 
-MOCK_MESSAGES = {
+MOCK_MESSAGES: dict[str, list[dict[str, Any]]] = {
     "ch_engineering": [
         {
             "id": "msg_1",
