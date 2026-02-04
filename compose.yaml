@@ -1,7 +1,7 @@
 services:
-  dash-db:
+  scout-db:
     image: agnohq/pgvector:18
-    container_name: dash-db
+    container_name: scout-db
     restart: unless-stopped
     ports:
       - "5432:5432"
@@ -12,26 +12,26 @@ services:
       POSTGRES_PASSWORD: ${DB_PASS:-ai}
       POSTGRES_DB: ${DB_DATABASE:-ai}
     networks:
-      - dash
+      - scout
 
-  dash-api:
-    container_name: dash-api
+  scout-api:
+    container_name: scout-api
     build:
       context: .
       dockerfile: Dockerfile
-    image: ${IMAGE_NAME:-dash}:${IMAGE_TAG:-latest}
+    image: ${IMAGE_NAME:-scout}:${IMAGE_TAG:-latest}
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
       - .:/app
-      - dash-data:/data
+      - scout-data:/data
     environment:
       DATA_DIR: /data
       RUNTIME_ENV: dev
       AGNO_DEBUG: "True"
-      DB_HOST: dash-db
+      DB_HOST: scout-db
       DB_PORT: 5432
       DB_USER: ${DB_USER:-ai}
       DB_PASS: ${DB_PASS:-ai}
@@ -41,15 +41,15 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       EXA_API_KEY: ${EXA_API_KEY:-}
     depends_on:
-      - dash-db
+      - scout-db
     networks:
-      - dash
+      - scout
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
 networks:
-  dash:
+  scout:
 
 volumes:
   pgdata:
-  dash-data:
+  scout-data:

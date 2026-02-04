@@ -28,8 +28,8 @@ cp example.env .env  # Add your OPENAI_API_KEY
 # Start the application
 docker compose up -d --build
 
-# Load knowledge
-docker exec -it scout-api python -m scout.scripts.load_knowledge
+# Load knowledge (inside the container)
+docker compose exec scout-api python -m scout.scripts.load_knowledge
 ```
 
 Verify at [http://localhost:8000/docs](http://localhost:8000/docs).

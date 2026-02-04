@@ -64,7 +64,7 @@ def grade_response(
     expected_any: list[str] | None = None,
     expected_source: str | None = None,
     expected_path: str | None = None,
-    model: str = "gpt-4.1-mini",
+    model: str = "gpt-5-mini",
 ) -> GradeResult:
     """
     Use an LLM to grade the agent's response.
