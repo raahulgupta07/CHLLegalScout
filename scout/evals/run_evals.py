@@ -357,7 +357,7 @@ def display_summary(results: list[EvalResult], total_duration: float, category: 
     summary.add_row("Avg time:", f"{total_duration / total:.1f}s per test" if total else "N/A")
 
     if source_total > 0:
-        source_rate = (source_matches / source_total * 100)
+        source_rate = source_matches / source_total * 100
         summary.add_row("Source match:", f"{source_matches}/{source_total} ({source_rate:.0f}%)")
 
     # Add LLM grading average if available

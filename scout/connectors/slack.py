@@ -7,7 +7,13 @@ from scout.connectors.base import BaseConnector
 # Mock data simulating a typical company's Slack workspace
 MOCK_CHANNELS: list[dict[str, Any]] = [
     {"id": "ch_general", "name": "general", "type": "public", "members": 150, "topic": "Company-wide announcements"},
-    {"id": "ch_engineering", "name": "engineering", "type": "public", "members": 45, "topic": "Engineering discussions"},
+    {
+        "id": "ch_engineering",
+        "name": "engineering",
+        "type": "public",
+        "members": 45,
+        "topic": "Engineering discussions",
+    },
     {
         "id": "ch_product",
         "name": "product-decisions",
@@ -17,8 +23,20 @@ MOCK_CHANNELS: list[dict[str, Any]] = [
     },
     {"id": "ch_incidents", "name": "incidents", "type": "public", "members": 50, "topic": "Incident coordination"},
     {"id": "ch_random", "name": "random", "type": "public", "members": 140, "topic": "Non-work banter"},
-    {"id": "ch_help_eng", "name": "help-engineering", "type": "public", "members": 60, "topic": "Ask engineering questions"},
-    {"id": "ch_announcements", "name": "announcements", "type": "public", "members": 150, "topic": "Official announcements"},
+    {
+        "id": "ch_help_eng",
+        "name": "help-engineering",
+        "type": "public",
+        "members": 60,
+        "topic": "Ask engineering questions",
+    },
+    {
+        "id": "ch_announcements",
+        "name": "announcements",
+        "type": "public",
+        "members": 150,
+        "topic": "Official announcements",
+    },
 ]
 
 MOCK_MESSAGES: dict[str, list[dict[str, Any]]] = {
@@ -136,7 +154,12 @@ MOCK_MESSAGES: dict[str, list[dict[str, Any]]] = {
 
 MOCK_USERS = {
     "sarah_chen": {"id": "sarah_chen", "name": "Sarah Chen", "title": "Senior Engineer", "email": "sarah@acme.com"},
-    "mike_johnson": {"id": "mike_johnson", "name": "Mike Johnson", "title": "Senior Engineer", "email": "mike@acme.com"},
+    "mike_johnson": {
+        "id": "mike_johnson",
+        "name": "Mike Johnson",
+        "title": "Senior Engineer",
+        "email": "mike@acme.com",
+    },
     "alex_kim": {"id": "alex_kim", "name": "Alex Kim", "title": "DevOps Engineer", "email": "alex@acme.com"},
     "pm_lead": {"id": "pm_lead", "name": "Jessica Wong", "title": "Product Lead", "email": "jessica@acme.com"},
     "ceo": {"id": "ceo", "name": "Tom Harris", "title": "CEO", "email": "tom@acme.com"},
