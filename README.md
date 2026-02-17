@@ -93,6 +93,9 @@ Scout improves without retraining through two complementary systems:
 railway login
 ./scripts/railway_up.sh
 
+# Set DOCUMENTS_DIR to your Railway volume mount path
+railway variables set DOCUMENTS_DIR=/documents
+
 # Load knowledge
 railway run python -m scout.scripts.load_knowledge
 ```
@@ -202,7 +205,7 @@ TestCase(
 |----------|----------|-------------|
 | `OPENAI_API_KEY` | Yes | OpenAI API key |
 | `EXA_API_KEY` | No | Exa API key for web research |
-| `DOCUMENTS_DIR` | No | Documents directory (default: `./documents`, `/documents` in Docker) |
+| `DOCUMENTS_DIR` | No | Documents directory (default: `./documents`) |
 | `DB_HOST` | No | Database host (default: localhost) |
 | `DB_PORT` | No | Database port (default: 5432) |
 
