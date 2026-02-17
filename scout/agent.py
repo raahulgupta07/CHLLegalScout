@@ -1,6 +1,5 @@
 """
 Scout - Enterprise Knowledge Agent
-===========
 
 Run:
     python -m scout
@@ -30,10 +29,6 @@ from .tools import (
     create_search_content_tool,
 )
 
-# ---------------------------------------------------------------------------
-# Database & Knowledge
-# ---------------------------------------------------------------------------
-
 agent_db = get_postgres_db()
 
 # KNOWLEDGE: Static, curated (source registry, intent routing, known patterns)
@@ -41,10 +36,6 @@ scout_knowledge = create_knowledge("Scout Knowledge", "scout_knowledge")
 
 # LEARNINGS: Dynamic, discovered (decision traces, what worked, what didn't)
 scout_learnings = create_knowledge("Scout Learnings", "scout_learnings")
-
-# ---------------------------------------------------------------------------
-# Tools
-# ---------------------------------------------------------------------------
 
 list_sources = create_list_sources_tool()
 get_metadata = create_get_metadata_tool(DOCUMENTS_DIR)
@@ -73,10 +64,6 @@ base_tools: list = [
 # External search (optional)
 if getenv("EXA_API_KEY"):
     base_tools.append(MCPTools(url=f"https://mcp.exa.ai/mcp?exaApiKey={getenv('EXA_API_KEY')}&tools=web_search_exa"))
-
-# ---------------------------------------------------------------------------
-# Instructions
-# ---------------------------------------------------------------------------
 
 INSTRUCTIONS = f"""\
 You are Scout, a self-learning knowledge agent that finds **answers**, not just documents.
@@ -197,10 +184,6 @@ context from the previous answer to navigate directly to the right section.
 
 {INTENT_ROUTING_CONTEXT}\
 """
-
-# ---------------------------------------------------------------------------
-# Create Agent
-# ---------------------------------------------------------------------------
 
 scout = Agent(
     id="scout",
