@@ -25,3 +25,7 @@ venv*
 aienv*
 
 .ipynb_checkpoints
+
+# Project-specific
+tmp/
+.claude/

@@ -26,9 +26,8 @@ services:
       - "8000:8000"
     volumes:
       - .:/app
-      - scout-data:/data
+      - ./documents:/documents
     environment:
-      DATA_DIR: /data
       RUNTIME_ENV: dev
       AGNO_DEBUG: "True"
       DB_HOST: scout-db
@@ -40,6 +39,7 @@ services:
       PRINT_ENV_ON_LOAD: "True"
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       EXA_API_KEY: ${EXA_API_KEY:-}
+      DOCUMENTS_DIR: /documents
     depends_on:
       - scout-db
     networks:
@@ -52,4 +52,3 @@ networks:
 
 volumes:
   pgdata:
-  scout-data:

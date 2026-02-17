@@ -14,7 +14,7 @@ from pathlib import Path
 from agno.os import AgentOS
 
 from db import get_postgres_db
-from scout.agents import reasoning_scout, scout, scout_knowledge
+from scout import scout
 
 # ============================================================================
 # Create AgentOS
@@ -23,8 +23,7 @@ agent_os = AgentOS(
     name="Scout",
     tracing=True,
     db=get_postgres_db(),
-    agents=[scout, reasoning_scout],
-    knowledge=[scout_knowledge],
+    agents=[scout],
     config=str(Path(__file__).parent / "config.yaml"),
 )
 

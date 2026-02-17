@@ -28,8 +28,8 @@ def create_save_intent_discovery_tool(knowledge: Knowledge):
         Args:
             name: Short name for this discovery (e.g., "q4_okrs_location")
             intent: What the user was looking for (e.g., "Find Q4 OKRs")
-            location: Where the information was found (e.g., "Google Drive > Planning > Q4 OKRs.docx")
-            source: Which source type (google_drive, notion, slack)
+            location: Where the information was found (e.g., "company-docs/policies/employee-handbook.md")
+            source: Which source type (files)
             summary: Brief description of what was found
             search_terms: Search terms that worked to find this
         """
@@ -42,7 +42,7 @@ def create_save_intent_discovery_tool(knowledge: Knowledge):
         if not source or not source.strip():
             return "Error: Source required."
 
-        valid_sources = ["s3", "google_drive", "notion", "slack"]
+        valid_sources = ["files"]
         if source.lower() not in valid_sources:
             return f"Error: Source must be one of: {', '.join(valid_sources)}"
 

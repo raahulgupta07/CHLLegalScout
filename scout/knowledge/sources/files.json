@@ -1,7 +1,7 @@
 {
-  "source_name": "S3",
-  "source_type": "s3",
-  "description": "AWS S3 for documents, exports, and knowledge bases. Primary source for most enterprise deployments.",
+  "source_name": "Local Files",
+  "source_type": "files",
+  "description": "Local documents directory for enterprise content, exports, and knowledge bases. Primary source for enterprise content.",
   "content_types": [
     "Markdown documents",
     "PDF files",
@@ -10,7 +10,7 @@
     "Text files"
   ],
   "capabilities": [
-    "List buckets and files",
+    "List directories and files",
     "Grep-like search across file contents",
     "Read full documents (not chunks)",
     "Write and update files",
@@ -19,7 +19,7 @@
   "limitations": [
     "Binary files need specialized handling",
     "Very large files may need pagination",
-    "No real-time collaboration (unlike Drive/Notion)"
+    "Local storage only (no real-time collaboration)"
   ],
   "common_locations": {
     "policies": "company-docs/policies/",
@@ -31,12 +31,12 @@
     "data_exports": "data-exports/reports/"
   },
   "search_tips": [
-    "Search by exact terms - S3 search is grep-like",
-    "Specify bucket to narrow search",
-    "Use file paths to navigate directly",
-    "Check multiple buckets for cross-functional topics"
+    "Use search_content for grep-like content search",
+    "Specify directory to narrow search scope",
+    "Use read_file to read full documents",
+    "Check multiple directories for cross-functional topics"
   ],
-  "buckets": [
+  "directories": [
     {
       "name": "company-docs",
       "description": "Company policies, HR docs, planning documents",

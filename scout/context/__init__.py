@@ -1,12 +1,12 @@
 """Context builders for Scout's system prompt."""
 
-from scout.context.intent_routing import (
+from .intent_routing import (
     INTENT_ROUTING,
     INTENT_ROUTING_CONTEXT,
     build_intent_routing,
     load_intent_rules,
 )
-from scout.context.source_registry import (
+from .source_registry import (
     SOURCE_REGISTRY,
     SOURCE_REGISTRY_STR,
     build_source_registry,

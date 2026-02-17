@@ -6,7 +6,7 @@ from typing import Any
 
 from agno.utils.log import logger
 
-from scout.paths import SOURCES_DIR
+from ..paths import SOURCES_DIR
 
 
 def load_source_metadata(sources_dir: Path | None = None) -> list[dict[str, Any]]:
@@ -32,7 +32,7 @@ def load_source_metadata(sources_dir: Path | None = None) -> list[dict[str, Any]
                     "limitations": source.get("limitations", []),
                     "common_locations": source.get("common_locations", {}),
                     "search_tips": source.get("search_tips", []),
-                    "buckets": source.get("buckets", []),  # S3-specific
+                    "directories": source.get("directories", []),
                 }
             )
         except (json.JSONDecodeError, KeyError, OSError) as e:
@@ -60,13 +60,12 @@ def format_source_registry(registry: dict[str, Any]) -> str:
             lines.append(source["description"])
         lines.append("")
 
-        # For S3, show buckets prominently
-        if source["source_type"] == "s3" and source.get("buckets"):
-            lines.append("**Buckets:**")
-            for bucket in source["buckets"]:
-                lines.append(f"- `{bucket['name']}`: {bucket.get('description', '')}")
-                if bucket.get("contains"):
-                    lines.append(f"  Contains: {', '.join(bucket['contains'])}")
+        if source["source_type"] == "files" and source.get("directories"):
+            lines.append("**Directories:**")
+            for directory in source["directories"]:
+                lines.append(f"- `{directory['name']}`: {directory.get('description', '')}")
+                if directory.get("contains"):
+                    lines.append(f"  Contains: {', '.join(directory['contains'])}")
             lines.append("")
 
         if source.get("common_locations"):

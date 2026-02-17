@@ -2,13 +2,13 @@
 Load Knowledge - Loads source metadata, routing rules, and patterns into knowledge base.
 
 Usage:
-    python -m scout.scripts.load_knowledge             # Upsert (update existing)
-    python -m scout.scripts.load_knowledge --recreate  # Drop and reload all
+    python -m scout.scripts.load_knowledge
+    python -m scout.scripts.load_knowledge --recreate
 """
 
 import argparse
 
-from scout.paths import KNOWLEDGE_DIR
+from ..paths import KNOWLEDGE_DIR
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Load knowledge into vector database")
@@ -19,7 +19,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    from scout.agents import scout_knowledge
+    from ..agent import scout_knowledge
 
     if args.recreate:
         print("Recreating knowledge base (dropping existing data)...\n")

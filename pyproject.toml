@@ -8,7 +8,6 @@ license-files = ["LICENSE"]
 authors = [{ name = "Agno", email = "hello@agno.com" }]
 
 dependencies = [
-  "agno-infra",
   "agno",
   "fastapi[standard]",
   "httpx",
@@ -17,7 +16,6 @@ dependencies = [
   "openinference-instrumentation-agno",
   "opentelemetry-api",
   "opentelemetry-sdk",
-  "pandas",
   "pgvector",
   "psycopg[binary]",
   "sqlalchemy",
@@ -48,7 +46,7 @@ plugins = ["pydantic.mypy"]
 exclude = [".venv*"]
 
 [[tool.mypy.overrides]]
-module = ["pgvector.*", "setuptools.*", "agno.*", "pandas.*", "httpx.*"]
+module = ["pgvector.*", "setuptools.*", "agno.*", "httpx.*", "mcp.*"]
 ignore_missing_imports = true
 
 [tool.uv.pip]

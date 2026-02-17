@@ -1,9 +1,5 @@
-"""Scout - An enterprise knowledge agent with Claude Code-like capabilities.
+"""Scout - Enterprise knowledge agent."""
 
-Finds information across S3, Google Drive, Notion, and Slack.
-Learns from every interaction.
-"""
-
-from scout.agents import reasoning_scout, scout, scout_knowledge, scout_learnings
-
-__all__ = ["scout", "reasoning_scout", "scout_knowledge", "scout_learnings"]
+from .agent import scout as scout
+from .agent import scout_knowledge as scout_knowledge
+from .agent import scout_learnings as scout_learnings

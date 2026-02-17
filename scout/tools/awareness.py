@@ -4,10 +4,22 @@ These tools mirror Claude Code's approach: know what exists, understand structur
 before diving into search.
 """
 
+from datetime import datetime, timezone
+from pathlib import Path
+
 from agno.tools import tool
 
-from scout.connectors import GoogleDriveConnector, NotionConnector, S3Connector, SlackConnector
-from scout.context.source_registry import SOURCE_REGISTRY
+from ..context.source_registry import SOURCE_REGISTRY
+
+
+def _format_size(size: int) -> str:
+    """Format file size in human-readable format."""
+    if size < 1024:
+        return f"{size} B"
+    elif size < 1024 * 1024:
+        return f"{size / 1024:.1f} KB"
+    else:
+        return f"{size / (1024 * 1024):.1f} MB"
 
 
 def create_list_sources_tool():
@@ -24,7 +36,7 @@ def create_list_sources_tool():
         Always start here if you're unsure where to look.
 
         Args:
-            source_type: Filter to specific source type (s3, google_drive, notion, slack).
+            source_type: Filter to specific source type (files).
                         If None, lists all sources.
             include_details: Include detailed info about each source's contents.
         """
@@ -57,11 +69,10 @@ def create_list_sources_tool():
                         lines.append(f"  - {key}: `{value}`")
                     lines.append("")
 
-                # For S3, list buckets
-                if source["source_type"] == "s3" and source.get("buckets"):
-                    lines.append("**Buckets:**")
-                    for bucket in source["buckets"]:
-                        lines.append(f"  - **{bucket['name']}**: {bucket.get('description', '')}")
+                if source["source_type"] == "files" and source.get("directories"):
+                    lines.append("**Directories:**")
+                    for directory in source["directories"]:
+                        lines.append(f"  - **{directory['name']}**: {directory.get('description', '')}")
                     lines.append("")
 
             lines.append("")
@@ -71,14 +82,8 @@ def create_list_sources_tool():
     return list_sources
 
 
-def create_get_metadata_tool():
-    """Create get_metadata tool."""
-    connectors = {
-        "s3": S3Connector(),
-        "google_drive": GoogleDriveConnector(),
-        "notion": NotionConnector(),
-        "slack": SlackConnector(),
-    }
+def create_get_metadata_tool(base_dir: Path):
+    """Create get_metadata tool backed by local filesystem."""
 
     @tool
     def get_metadata(
@@ -88,113 +93,82 @@ def create_get_metadata_tool():
         """Get metadata about a source or specific path without reading content.
 
         Use this to understand structure before searching or reading.
-        For S3: lists buckets, folders, or file metadata.
-        For Drive: lists folders and files.
-        For Notion: lists pages and databases.
-        For Slack: lists channels.
+        For files: lists directories, folder contents, or file metadata.
 
         Args:
-            source: Source type (s3, google_drive, notion, slack).
-            path: Optional path to inspect. Format depends on source:
-                  - S3: "bucket-name" or "bucket-name/prefix"
-                  - Drive: folder ID
-                  - Notion: page ID
-                  - Slack: channel ID
+            source: Source type (files).
+            path: Optional path to inspect. Examples:
+                  - None: show top-level directories
+                  - "company-docs": show contents of company-docs/
+                  - "company-docs/policies/employee-handbook.md": show file metadata
         """
-        if source not in connectors:
-            return f"Unknown source: {source}. Available: {', '.join(connectors.keys())}"
+        if source != "files":
+            return f"Unknown source: {source}. Available: files"
 
-        connector = connectors[source]
-        connector.authenticate()
+        if not base_dir.is_dir():
+            return f"Data directory not found: {base_dir}"
 
-        if not path:
-            # List top-level items
-            items = connector.list_items(limit=30)
+        try:
+            if not path:
+                # List top-level directories with file counts
+                lines = ["## Data Directory Structure", ""]
+                entries = sorted(base_dir.iterdir())
+                if not entries:
+                    return "## Data Directory\n\nEmpty directory."
 
-            if not items:
-                return f"No items found in {source}."
-
-            lines = [f"## {connector.source_name} Structure", ""]
-
-            for item in items:
-                icon = _get_icon(item.get("type", ""), source)
-                name = item.get("name", item.get("id", "Unknown"))
-
-                if item.get("type") in ("bucket", "folder", "directory", "page", "database"):
-                    lines.append(f"{icon} **{name}/**")
-                else:
-                    size_info = ""
-                    if item.get("size"):
-                        size_info = f" ({_format_size(item['size'])})"
-                    lines.append(f"{icon} {name}{size_info}")
-
-                if item.get("id") and item["id"] != name:
-                    lines.append(f"   `{item['id']}`")
-
-            return "\n".join(lines)
-
-        # Get specific path metadata
-        items = connector.list_items(parent_id=path, limit=30)
-
-        if not items:
-            # Try reading as a file
-            result = connector.read(path)
-            if "error" not in result:
-                lines = [f"## File: {path}", ""]
-                if result.get("metadata"):
-                    meta = result["metadata"]
-                    for key, value in meta.items():
-                        lines.append(f"**{key}:** {value}")
+                for entry in entries:
+                    if entry.is_dir():
+                        count = sum(1 for _ in entry.rglob("*") if _.is_file())
+                        lines.append(f"[dir] **{entry.name}/**  ({count} files)")
+                    elif entry.is_file():
+                        lines.append(f"[file] {entry.name}  ({_format_size(entry.stat().st_size)})")
                 return "\n".join(lines)
-            return f"Path not found or empty: {path}"
 
-        lines = [f"## Contents of {path}", ""]
+            # Normalize path
+            clean = path.strip("/")
+            target = base_dir / clean
 
-        for item in items:
-            icon = _get_icon(item.get("type", ""), source)
-            name = item.get("name", item.get("id", "Unknown"))
+            if target.is_file():
+                # File metadata
+                stat = target.stat()
+                modified = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).strftime("%Y-%m-%d")
+                lines = [f"## File: {clean}", ""]
+                lines.append(f"**Size:** {_format_size(stat.st_size)}")
+                lines.append(f"**Modified:** {modified}")
 
-            if item.get("type") in ("bucket", "folder", "directory", "page", "database"):
-                lines.append(f"{icon} **{name}/**")
-            else:
-                size_info = ""
-                if item.get("size"):
-                    size_info = f" ({_format_size(item['size'])})"
-                modified = item.get("modified", "")
-                if modified:
-                    size_info += f" - {modified}"
-                lines.append(f"{icon} {name}{size_info}")
+                # Line count for text files
+                if target.suffix.lower() in {".md", ".txt", ".csv", ".json", ".yaml", ".yml", ".py", ".js", ".ts"}:
+                    try:
+                        line_count = len(target.read_text(encoding="utf-8", errors="replace").splitlines())
+                        lines.append(f"**Lines:** {line_count}")
+                    except OSError:
+                        pass
 
-        return "\n".join(lines)
+                return "\n".join(lines)
+
+            if target.is_dir():
+                # Directory listing
+                lines = [f"## Contents of {clean}", ""]
+                entries = sorted(target.iterdir())
+
+                if not entries:
+                    return f"Empty directory: {clean}"
+
+                for entry in entries:
+                    if entry.is_dir():
+                        count = sum(1 for _ in entry.rglob("*") if _.is_file())
+                        lines.append(f"[dir] **{entry.name}/**  ({count} files)")
+                    elif entry.is_file():
+                        stat = entry.stat()
+                        size_info = f" ({_format_size(stat.st_size)})"
+                        modified = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).strftime("%Y-%m-%d")
+                        lines.append(f"[file] {entry.name}{size_info} - {modified}")
+
+                return "\n".join(lines)
+
+            return f"Path not found: {path}"
+
+        except OSError as e:
+            return f"Error inspecting {source}: {e}"
 
     return get_metadata
-
-
-def _get_icon(item_type: str, source: str = "") -> str:
-    """Get an icon for the item type."""
-    icons = {
-        "bucket": "📦",
-        "folder": "📁",
-        "directory": "📁",
-        "file": "📄",
-        "document": "📄",
-        "spreadsheet": "📊",
-        "presentation": "📽️",
-        "page": "📝",
-        "database": "🗃️",
-        "database_entry": "📋",
-        "public": "📢",
-        "private": "🔒",
-        "channel": "💬",
-    }
-    return icons.get(item_type, "📎")
-
-
-def _format_size(size: int) -> str:
-    """Format file size in human-readable format."""
-    if size < 1024:
-        return f"{size} B"
-    elif size < 1024 * 1024:
-        return f"{size / 1024:.1f} KB"
-    else:
-        return f"{size / (1024 * 1024):.1f} MB"
