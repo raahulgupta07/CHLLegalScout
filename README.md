@@ -50,9 +50,9 @@ What's our PTO policy?
 How do I deploy to production?
 → Here's the deployment process from the runbook...
 
-What's the SLA for P1 incidents?
-→ P1 incidents require acknowledgment within 15 minutes and resolution
-  within 4 hours. Full incident response process in the runbook...
+What's the SLA for SEV1 incidents?
+→ SEV1 incidents require acknowledgment within 5 minutes and resolution
+  within 1 hour. Full incident response process in the runbook...
 ```
 
 ## Documents Directory
@@ -147,6 +147,53 @@ Scout works best when it understands your organization's knowledge landscape.
 ```sh
 python -m scout.scripts.load_knowledge            # Upsert
 python -m scout.scripts.load_knowledge --recreate  # Fresh start
+```
+
+## Evaluations
+
+Scout includes an evaluation suite to measure response quality across categories.
+
+```sh
+# Run all tests (string matching)
+python -m scout.evals.run_evals
+
+# Filter by category
+python -m scout.evals.run_evals --category policy
+python -m scout.evals.run_evals --category runbook
+
+# LLM-based grading (uses gpt-5-mini)
+python -m scout.evals.run_evals --llm-grader
+
+# Verbose output (show full responses on failure)
+python -m scout.evals.run_evals --verbose
+
+# Source citation verification (affects pass/fail)
+python -m scout.evals.run_evals --check-sources
+
+# Combined
+python -m scout.evals.run_evals -g -s -v
+```
+
+### Test Categories
+
+| Category | Tests | What It Covers |
+|----------|-------|----------------|
+| **policy** | 5 | HR policies, benefits, handbook questions |
+| **runbook** | 5 | Deployment, incidents, on-call operations |
+| **navigation** | 4 | Multi-hop search, cross-document reasoning |
+| **edge_case** | 3 | Missing docs, ambiguous queries, graceful handling |
+
+### Adding Test Cases
+
+Add new test cases in `scout/evals/test_cases.py`:
+
+```python
+TestCase(
+    question="What is the password policy?",
+    expected_strings=["14 characters", "90 days"],
+    category="navigation",
+    golden_path="company-docs/policies/security-policy.md",
+)
 ```
 
 ## Environment Variables
