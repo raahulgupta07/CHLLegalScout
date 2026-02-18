@@ -202,7 +202,7 @@ TestCase(
 |----------|----------|-------------|
 | `OPENAI_API_KEY` | Yes | OpenAI API key |
 | `EXA_API_KEY` | No | Exa API key for web research |
-| `DOCUMENTS_DIR` | No | Documents directory (default: `./documents`, `/documents` in Docker) |
+| `DOCUMENTS_DIR` | No | Documents directory (default: `./documents`) |
 | `DB_HOST` | No | Database host (default: localhost) |
 | `DB_PORT` | No | Database port (default: 5432) |
 
