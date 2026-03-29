@@ -1,0 +1,170 @@
+{
+  "category": "business_legal_rules",
+  "description": "Corporate legal requirements for Singapore companies - AGM, EGM, filing deadlines",
+  "rules": [
+    {
+      "id": "agm_requirement",
+      "title": "Annual General Meeting (AGM) Requirements",
+      "jurisdiction": "Singapore",
+      "description": "Singapore companies must hold an AGM within 6 months from the end of their financial year",
+      "requirements": [
+        "AGM must be held once every calendar year",
+        "First AGM must be held within 18 months of incorporation",
+        "Gap between AGMs cannot exceed 15 months",
+        "Notice of AGM must be given at least 14 days before the meeting (21 days for listed companies)",
+        "Financial statements must be laid before AGM"
+      ],
+      "deadline_calculation": "Within 6 months from the end of financial year",
+      "consequences": [
+        "Late filing penalties up to $600",
+        "Potential struck off by ACRA",
+        "Directors may be fined up to $10,000"
+      ],
+      "exemptions": {
+        "solely_exempt_private_company": {
+          "description": "Solely Exempt Private Companies (SEPC) are exempt from holding AGMs",
+          "conditions": [
+            "Company has only individual shareholders (no corporate shareholders)",
+            "All directors are individuals",
+            "Company is not a sole director company"
+          ]
+        }
+      }
+    },
+    {
+      "id": "egm_requirements",
+      "title": "Extraordinary General Meeting (EGM) Requirements",
+      "jurisdiction": "Singapore",
+      "description": "Meetings called for special business that cannot wait until the next AGM",
+      "trigger_conditions": [
+        "Any urgent business requiring shareholder approval",
+        "Removal of director(s)",
+        "Alteration of constitution",
+        "Reduction of capital",
+        "Voluntary winding up",
+        "Major transactions under Section 160 of Companies Act"
+      ],
+      "notice_period": "14 days notice (21 days for listed companies)",
+      "quorum": "At least 2 shareholders present (unless constitution states otherwise)"
+    },
+    {
+      "id": "ar_filing",
+      "title": "Annual Return Filing Requirements",
+      "jurisdiction": "Singapore",
+      "description": "ACRA Annual Return must be filed within 7 days after AGM (or 7 months from FYE for exemption)",
+      "deadline": "7 days after AGM is held (or within 7 months from FYE for exempt companies)",
+      "required_information": [
+        "Company's registered address",
+        "Principal activities",
+        "Share capital and shareholders",
+        "Directors' details",
+        "Company secretary details",
+        "Financial statements summary (for non-exempt companies)"
+      ],
+      "penalties": {
+        "late_filing": "$300 for first 1-60 days, $600 for 61-180 days, additional penalties up to $2,000",
+        "persistent_non_compliance": "Potential struck off"
+      }
+    },
+    {
+      "id": "financial_year_end",
+      "title": "Financial Year End (FYE) Rules",
+      "jurisdiction": "Singapore",
+      "description": "Companies can choose any financial year end date",
+      "considerations": [
+        "FYE should align with business cycle",
+        "First FY cannot exceed 18 months from incorporation",
+        "Most companies use calendar year end (31 Dec) or 31 March",
+        "Group companies should align FYE for consolidated accounts"
+      ]
+    },
+    {
+      "id": "register_maintenance",
+      "title": "Required Registers and Records",
+      "jurisdiction": "Singapore",
+      "description": "Companies must maintain various statutory registers",
+      "required_registers": [
+        "Register of Members",
+        "Register of Directors",
+        "Register of Secretaries",
+        "Register of Controllers",
+        "Register of Significant Controllers",
+        "Minute Books of Board and General Meetings"
+      ],
+      "retention_period": "5 years from date of transaction/decision"
+    },
+    {
+      "id": "director_requirements",
+      "title": "Director Requirements",
+      "jurisdiction": "Singapore",
+      "description": "Minimum requirements for company directors",
+      "requirements": [
+        "At least 1 director who is ordinarily resident in Singapore",
+        "Minimum age 18 years",
+        "No disqualification under Companies Act Section 149",
+        "Natural person (not corporate entity)",
+        "Must not be an undischarged bankrupt"
+      ],
+      "resignation": "Director can resign by giving notice to company. Company must file resignation with ACRA within 14 days"
+    },
+    {
+      "id": "secretary_requirements",
+      "title": "Company Secretary Requirements",
+      "jurisdiction": "Singapore",
+      "description": "Requirements for company secretary",
+      "requirements": [
+        "At least 1 secretary for every company",
+        "Secretary must be appointed within 6 months of incorporation",
+        "For listed companies, secretary must have at least 3 years experience",
+        "Secretary must be ordinarily resident in Singapore"
+      ],
+      "duties": [
+        "Ensure compliance with Companies Act",
+        "File annual returns and other statutory filings",
+        "Maintain statutory registers",
+        "Arrange general meetings"
+      ]
+    },
+    {
+      "id": "registered_address",
+      "title": "Registered Office Address Requirements",
+      "jurisdiction": "Singapore",
+      "description": "Company must have a registered office in Singapore",
+      "requirements": [
+        "Must be an address in Singapore (cannot be PO Box)",
+        "Must be open to public during business hours",
+        "Must receive and forward official correspondence"
+      ],
+      "acceptable_addresses": [
+        "Commercial office address",
+        "Virtual office (must have actual presence)",
+        "Registered office provider"
+      ]
+    },
+    {
+      "id": "tax_filing",
+      "title": "Tax Filing Requirements",
+      "jurisdiction": "Singapore",
+      "description": "IRAS tax filing obligations for companies",
+      "forms": [
+        {
+          "form": "Form C-S/Form C",
+          "description": "Corporate income tax return",
+          "deadline": "30 November of the year following YA"
+        },
+        {
+          "form": "GST F5",
+          "description": "GST returns (if registered)",
+          "deadline": "Monthly/Quarterly depending on scheme"
+        },
+        {
+          "form": "Form CS",
+          "description": "Contributions to CPF for employees",
+          "deadline": "Monthly"
+        }
+      ]
+    }
+  ],
+  "source": "Companies Act (Chapter 50), ACRA Practice Directions, IRAS Guidelines",
+  "last_updated": "2024-01-15"
+}

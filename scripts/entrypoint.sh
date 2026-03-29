@@ -30,16 +30,15 @@ if [[ "$PRINT_ENV_ON_LOAD" = true || "$PRINT_ENV_ON_LOAD" = True ]]; then
     echo ""
 fi
 
-# Seed /documents with sample docs if empty
-if [ -d /app/documents-seed ] && [ -z "$(ls -A /documents 2>/dev/null)" ]; then
-    echo -e "    ${DIM}Seeding /documents with sample documents...${NC}"
-    cp -r /app/documents-seed/* /documents/
-fi
-
 if [[ "$WAIT_FOR_DB" = true || "$WAIT_FOR_DB" = True ]]; then
     echo -e "    ${DIM}Waiting for database at ${DB_HOST}:${DB_PORT}...${NC}"
     dockerize -wait tcp://$DB_HOST:$DB_PORT -timeout 300s
     echo -e "    ${BOLD}Database ready.${NC}"
+    echo ""
+
+    # Run pending database migrations
+    echo -e "    ${DIM}Checking for pending database migrations...${NC}"
+    python -m db.migrate 2>&1 | sed 's/^/    /'
     echo ""
 fi
 

@@ -1,0 +1,25 @@
+# ============================================================================
+# Prometheus Configuration — Legal Scout
+# ============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Legal Scout API metrics
+  - job_name: "legalscout-api"
+    static_configs:
+      - targets: ["scout-api:8000"]
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  # Nginx (if using nginx-prometheus-exporter in future)
+  # - job_name: "nginx"
+  #   static_configs:
+  #     - targets: ["nginx-exporter:9113"]
+
+  # PostgreSQL (if using postgres_exporter in future)
+  # - job_name: "postgres"
+  #   static_configs:
+  #     - targets: ["postgres-exporter:9187"]

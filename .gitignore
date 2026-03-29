@@ -62,5 +62,22 @@ tmp
 .claude
 .conductor
 
-# Optional: local PyPI creds (uncomment if you ever create it)
-# .pypirc
+# Environment files (NEVER commit secrets)
+.env.production
+.env.*.local
+
+# Docker volumes & data
+logs/
+backups/
+
+# Frontend
+agent-ui/node_modules/
+agent-ui/.next/
+agent-ui/out/
+
+# Generated files
+documents/legal/output/
+documents/legal/previews/
+documents/legal/uploads/
+documents/legal/knowledge/*.xlsx
+documents/legal/data/*.xlsx

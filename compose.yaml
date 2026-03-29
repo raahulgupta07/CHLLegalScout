@@ -1,54 +1,157 @@
+# ============================================================================
+# Legal Scout — Docker Compose (Single-Port Architecture)
+# ============================================================================
+# 2 containers: API (+ frontend), Database
+# Everything served on port 80 from one container.
+#
+# Required .env variables:
+#   OPENROUTER_API_KEY, JWT_SECRET_KEY, ADMIN_PASSWORD, DB_PASS
+#
+# Quick start:
+#   cp .env.example .env  # Edit with real values
+#   docker compose up -d
+# ============================================================================
+
 services:
+  # --------------------------------------------------------------------------
+  # PostgreSQL + pgvector
+  # --------------------------------------------------------------------------
   scout-db:
-    image: agnohq/pgvector:18
+    image: pgvector/pgvector:pg18-trixie
     container_name: scout-db
     restart: unless-stopped
-    ports:
-      - "5432:5432"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - pgdata:/var/lib/postgresql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     environment:
-      POSTGRES_USER: ${DB_USER:-ai}
-      POSTGRES_PASSWORD: ${DB_PASS:-ai}
-      POSTGRES_DB: ${DB_DATABASE:-ai}
+      POSTGRES_USER: ${DB_USER:-scout}
+      POSTGRES_PASSWORD: ${DB_PASS:?Set DB_PASS in .env}
+      POSTGRES_DB: ${DB_DATABASE:-legalscout}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-scout}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - scout
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
 
+  # --------------------------------------------------------------------------
+  # FastAPI + Frontend (single container, single port)
+  # --------------------------------------------------------------------------
   scout-api:
     container_name: scout-api
     build:
       context: .
       dockerfile: Dockerfile
     image: ${IMAGE_NAME:-scout}:${IMAGE_TAG:-latest}
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
-      - "8000:8000"
+      - "${PORT:-80}:8000"
     volumes:
-      - .:/app
-      - ./documents:/documents
+      - ./documents:/documents    # IMPORTANT: host bind mount — data persists here
+      - ./logs:/app/logs          # Application logs
     environment:
-      RUNTIME_ENV: dev
-      AGNO_DEBUG: "True"
       DB_HOST: scout-db
       DB_PORT: 5432
-      DB_USER: ${DB_USER:-ai}
-      DB_PASS: ${DB_PASS:-ai}
-      DB_DATABASE: ${DB_DATABASE:-ai}
+      DB_USER: ${DB_USER:-scout}
+      DB_PASS: ${DB_PASS:?Set DB_PASS in .env}
+      DB_DATABASE: ${DB_DATABASE:-legalscout}
       WAIT_FOR_DB: "True"
-      PRINT_ENV_ON_LOAD: "True"
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      EXA_API_KEY: ${EXA_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in .env}
       DOCUMENTS_DIR: /documents
+      API_HOST: ${API_HOST:-}
+      FRONTEND_HOST: ${FRONTEND_HOST:-}
+      SKIP_AI_TRAINING: "true"
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in .env — run scripts/setup.sh}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@legalscout.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env — run scripts/setup.sh}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     depends_on:
-      - scout-db
+      scout-db:
+        condition: service_healthy
     networks:
       - scout
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+
+  # --------------------------------------------------------------------------
+  # Monitoring (opt-in): docker compose --profile monitoring up -d
+  # --------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: scout-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+      - "--storage.tsdb.retention.size=1GB"
+    networks:
+      - scout
+    profiles:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: scout-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-legalscout}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    networks:
+      - scout
+    profiles:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
 
 networks:
   scout:
+    driver: bridge
 
 volumes:
   pgdata:
+  prometheus-data:
+  grafana-data:

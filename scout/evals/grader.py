@@ -7,6 +7,7 @@ answers the user's question given the expected results.
 
 from dataclasses import dataclass
 
+import os
 from openai import OpenAI
 
 
@@ -68,7 +69,10 @@ def grade_response(
     Returns:
         GradeResult with pass/fail, score, and reasoning
     """
-    client = OpenAI()
+    client = OpenAI(
+        api_key=os.getenv("OPENROUTER_API_KEY"),
+        base_url="https://openrouter.ai/api/v1",
+    )
 
     # Build the expected answer context
     expected_context = f"Expected values to appear: {', '.join(expected_values)}" if expected_values else ""

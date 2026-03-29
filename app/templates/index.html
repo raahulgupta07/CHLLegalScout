@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legal Scout - AI Legal Document Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#ff4017',
+                        primaryAccent: '#fff4f0',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --primary: #ff4017;
+            --primary-foreground: #ffffff;
+            --background: #fafafa;
+            --foreground: #171717;
+            --card: #ffffff;
+            --card-foreground: #171717;
+            --popover: #ffffff;
+            --popover-foreground: #171717;
+            --muted: #f5f5f5;
+            --muted-foreground: #737373;
+            --accent: #e5e7eb;
+            --accent-foreground: #171717;
+            --border: #e5e7eb;
+            --input: #e5e7eb;
+            --ring: #ff4017;
+        }
+        body { 
+            background: #fafafa;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+        .sidebar {
+            background: linear-gradient(180deg, #1a1a1a 0%, #0a0a0a 100%);
+        }
+        .chat-input {
+            background: #fff4f0;
+            border-color: #ff4017;
+        }
+        .chat-input:focus {
+            outline: none;
+            border-color: #ff4017;
+            box-shadow: 0 0 0 2px rgba(255, 64, 23, 0.1);
+        }
+        .send-btn {
+            background: #ff4017;
+        }
+        .send-btn:hover {
+            background: #e63812;
+        }
+        .message-user {
+            background: #ff4017;
+            color: white;
+        }
+        .message-bot {
+            background: white;
+            border: 1px solid #e5e7eb;
+        }
+    </style>
+</head>
+<body class="h-screen overflow-hidden">
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <aside class="sidebar flex flex-col shrink-0 overflow-hidden px-2 py-3 text-white w-64">
+            <div class="flex items-center gap-2 mb-6 px-2">
+                <svg width="20" height="20" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-primary">
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M15.7469 1.84196C16.0957 2.52647 16.0957 3.42256 16.0957 5.21473V10.9752C16.0957 12.7674 16.0957 13.6634 15.7469 14.348C15.4401 14.9501 14.9506 15.4396 14.3485 15.7464C13.6639 16.0952 12.7679 16.0952 10.9757 16.0952H5.21522C3.42305 16.0952 2.52696 16.0952 1.84245 15.7464C1.24033 15.4396 0.750789 14.9501 0.443994 14.348C0.0952148 13.6634 0.0952148 12.7674 0.0952148 10.9752V5.21473C0.0952148 3.42256 0.0952148 2.52647 0.443994 1.84196C0.750789 1.23984 1.24033 0.7503 1.84245 0.443506C2.52696 0.0947266 3.42305 0.0947266 5.21521 0.0947266H10.9757C12.7678 0.0947266 13.6639 0.0947266 14.3485 0.443506C14.9506 0.7503 15.4401 1.23984 15.7469 1.84196Z" fill="#FF4017"></path>
+                </svg>
+                <span class="text-xs font-medium uppercase tracking-wider">Legal Scout</span>
+            </div>
+            
+            <button onclick="newChat()" class="flex items-center justify-center gap-2 w-full px-3 py-2 bg-primary text-white text-xs font-medium rounded-xl hover:bg-primary/80 transition-colors mb-4">
+                <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M8 2.75C8 2.47386 7.77614 2.25 7.5 2.25C7.22386 2.25 7 2.47386 7 2.75V7H2.75C2.47386 7 2.25 7.22386 2.25 7.5C2.25 7.77614 2.47386 8 2.75 8H7V12.25C7 12.5261 7.22386 12.75 7.5 12.75C7.77614 12.75 8 12.5261 8 12.25V8H12.25C12.5261 8 12.75 7.77614 12.75 7.5C12.75 7.22386 12.5261 7 12.25 7H8V2.75Z" fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"></path>
+                </svg>
+                New Chat
+            </button>
+            
+            <a href="/dashboard" class="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium rounded-lg transition-colors text-white/70 hover:text-white hover:bg-white/10 mb-4">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+                </svg>
+                Dashboard
+            </a>
+            
+            <div class="text-xs font-medium uppercase text-white/50 mt-4 mb-2 px-3">Quick Actions</div>
+            <div class="space-y-1">
+                <button onclick="quickAction('companies')" class="w-full text-left px-3 py-2 text-xs text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                    📋 List Companies
+                </button>
+                <button onclick="quickAction('templates')" class="w-full text-left px-3 py-2 text-xs text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                    📄 List Templates
+                </button>
+            </div>
+            <div class="space-y-1">
+                <button onclick="quickAction('companies')" class="w-full text-left px-3 py-2 text-xs text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                    📋 List Companies
+                </button>
+                <button onclick="quickAction('templates')" class="w-full text-left px-3 py-2 text-xs text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                    📄 List Templates
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="flex-1 flex flex-col overflow-hidden">
+            <!-- Header -->
+            <div class="bg-white border-b border-gray-200 px-6 py-4">
+                <h1 class="text-xl font-semibold text-gray-900">AI Legal Document Assistant</h1>
+                <p class="text-sm text-gray-500">Create legal documents from templates</p>
+            </div>
+            
+            <!-- Messages -->
+            <div id="messages" class="flex-1 overflow-auto p-6 space-y-4">
+                <!-- Welcome Message -->
+                <div class="message-bot rounded-xl p-4 max-w-2xl">
+                    <p class="font-semibold text-gray-900 mb-2">Welcome to Legal Scout! 👋</p>
+                    <p class="text-gray-600 text-sm mb-3">I can help you create legal documents from templates. Here's what I can do:</p>
+                    <ul class="text-sm text-gray-600 space-y-1">
+                        <li>• <strong>Create documents</strong> - "Create AGM for City Holdings Limited"</li>
+                        <li>• <strong>List companies</strong> - "What companies do we have?"</li>
+                        <li>• <strong>Show templates</strong> - "What templates are available?"</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Quick Generate Panel -->
+            <div id="quickGenerate" class="border-t border-gray-200 bg-white p-4">
+                <div class="max-w-2xl mx-auto">
+                    <div class="flex gap-2 mb-3">
+                        <select id="genCompany" class="flex-1 p-2 border rounded-lg text-sm"></select>
+                        <select id="genTemplate" class="flex-1 p-2 border rounded-lg text-sm"></select>
+                        <button onclick="quickGenerate()" class="send-btn text-white px-4 py-2 rounded-lg text-sm font-medium">
+                            Generate
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Chat Input -->
+            <div class="border-t border-gray-200 bg-white p-4">
+                <div class="max-w-2xl mx-auto flex gap-2">
+                    <textarea 
+                        id="chatInput" 
+                        class="chat-input flex-1 resize-none rounded-xl py-3 px-4 text-sm" 
+                        placeholder="Ask me to create a document... (e.g., 'Create AGM for City Holdings Limited')"
+                        rows="1"
+                        onkeydown="handleKeyDown(event)"
+                    ></textarea>
+                    <button onclick="sendMessage()" class="send-btn text-white px-4 py-2 rounded-xl">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path>
+                            <path d="m21.854 2.147-10.94 10.939"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let data = { companies: [], templates: [] };
+        
+        async function loadData() {
+            const res = await fetch('/api/dashboard/data');
+            data = await res.json();
+            
+            // Populate dropdowns
+            const companySelect = document.getElementById('genCompany');
+            const templateSelect = document.getElementById('genTemplate');
+            
+            companySelect.innerHTML = data.companies.map(c => 
+                `<option value="${c.company_name}">${c.company_name}</option>`
+            ).join('');
+            
+            templateSelect.innerHTML = data.templates.map(t => 
+                `<option value="${t.name}">${t.name.replace('.docx', '')}</option>`
+            ).join('');
+        }
+        
+        function handleKeyDown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+        
+        function newChat() {
+            document.getElementById('messages').innerHTML = `
+                <div class="message-bot rounded-xl p-4 max-w-2xl">
+                    <p class="font-semibold text-gray-900 mb-2">Welcome to Legal Scout! 👋</p>
+                    <p class="text-gray-600 text-sm">How can I help you create legal documents today?</p>
+                </div>
+            `;
+            document.getElementById('chatInput').value = '';
+        }
+        
+        async function quickAction(action) {
+            const messages = document.getElementById('messages');
+            let content = '';
+            
+            if (action === 'companies') {
+                content = data.companies.map(c => 
+                    `<div class="py-2 border-b border-gray-100 last:border-0">
+                        <strong>${c.company_name}</strong><br>
+                        <span class="text-sm text-gray-500">Reg: ${c.company_registration_number}</span>
+                    </div>`
+                ).join('');
+                addMessage('bot', `<strong>Companies (${data.companies.length}):</strong><div class="mt-2">${content}</div>`);
+            } else if (action === 'templates') {
+                content = data.templates.map(t => 
+                    `<div class="py-2 border-b border-gray-100 last:border-0">
+                        <strong>${t.name.replace('.docx', '')}</strong><br>
+                        <span class="text-sm text-gray-500">${t.total} fields</span>
+                    </div>`
+                ).join('');
+                addMessage('bot', `<strong>Templates (${data.templates.length}):</strong><div class="mt-2">${content}</div>`);
+            }
+        }
+        
+        async function quickGenerate() {
+            const company = document.getElementById('genCompany').value;
+            const template = document.getElementById('genTemplate').value;
+            
+            addMessage('user', `Create ${template.replace('.docx', '')} for ${company}`);
+            
+            const loadingMsg = addMessage('bot', '⏳ Generating document...');
+            
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ company, template })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    loadingMsg.innerHTML = `✅ <strong>Document Created!</strong><br>
+                        <a href="${data.download_url}" class="text-primary underline" target="_blank">Download Document</a>`;
+                } else {
+                    loadingMsg.innerHTML = `❌ <strong>Error:</strong> ${data.message}`;
+                }
+            } catch(e) {
+                loadingMsg.innerHTML = `❌ Error: ${e.message}`;
+            }
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+            
+            addMessage('user', message);
+            input.value = '';
+            
+            const loadingMsg = addMessage('bot', '⏳ Processing...');
+            
+            // Simple keyword matching
+            const lower = message.toLowerCase();
+            
+            if (lower.includes('create') || lower.includes('generate')) {
+                // Extract company name from message
+                let company = data.companies.find(c => lower.includes(c.company_name.toLowerCase()));
+                if (!company) company = data.companies[0];
+                
+                if (company) {
+                    const template = data.templates.find(t => 
+                        lower.includes(t.name.toLowerCase().replace('.docx', '')) || 
+                        (lower.includes('agm') && t.name.includes('AGM')) ||
+                        (lower.includes('notice') && t.name.includes('Notice'))
+                    ) || data.templates[0];
+                    
+                    if (template) {
+                        try {
+                            const res = await fetch('/api/chat', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({ 
+                                    company: company.company_name, 
+                                    template: template.name 
+                                })
+                            });
+                            const result = await res.json();
+                            if (result.success) {
+                                loadingMsg.innerHTML = `✅ <strong>Document Created!</strong><br>
+                                    Template: ${template.name.replace('.docx', '')}<br>
+                                    Company: ${company.company_name}<br>
+                                    <a href="${result.download_url}" class="text-primary underline" target="_blank">Download Document</a>`;
+                            } else {
+                                loadingMsg.innerHTML = `❌ Error: ${result.message}`;
+                            }
+                        } catch(e) {
+                            loadingMsg.innerHTML = `❌ Error: ${e.message}`;
+                        }
+                        return;
+                    }
+                }
+                loadingMsg.innerHTML = `I couldn't find a matching template. <a href="/dashboard" class="text-primary underline">Try the Dashboard</a>`;
+            } else if (lower.includes('company')) {
+                loadingMsg.innerHTML = `<strong>Companies (${data.companies.length}):</strong><div class="mt-2">` + 
+                    data.companies.map(c => `<div class="py-1">• ${c.company_name} (${c.company_registration_number})</div>`).join('') + 
+                    `</div>`;
+            } else if (lower.includes('template')) {
+                loadingMsg.innerHTML = `<strong>Templates (${data.templates.length}):</strong><div class="mt-2">` + 
+                    data.templates.map(t => `<div class="py-1">• ${t.name.replace('.docx', '')} (${t.total} fields)</div>`).join('') + 
+                    `</div>`;
+            } else {
+                loadingMsg.innerHTML = `I didn't understand that. Try:
+                    <ul class="mt-2 space-y-1">
+                        <li>• "Create AGM for [company name]"</li>
+                        <li>• "What companies do we have?"</li>
+                        <li>• "Show templates"</li>
+                    </ul>`;
+            }
+        }
+        
+        function addMessage(type, content) {
+            const messages = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.className = type === 'user' 
+                ? 'message-user rounded-xl p-4 max-w-2xl ml-auto' 
+                : 'message-bot rounded-xl p-4 max-w-2xl';
+            div.innerHTML = content;
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+            return div;
+        }
+        
+        loadData();
+    </script>
+</body>
+</html>

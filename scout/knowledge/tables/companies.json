@@ -1,0 +1,54 @@
+{
+  "table_name": "companies",
+  "table_description": "Company registry with directors, registration details, and meeting information for legal document generation",
+  "use_cases": [
+    "Generate AGM/EGM documents",
+    "Create director appointment letters",
+    "Prepare shareholder resolutions",
+    "Legal compliance documents"
+  ],
+  "columns": {
+    "company_name": {
+      "type": "string",
+      "description": "Full legal company name",
+      "example": "City Holdings Limited"
+    },
+    "company_registration_number": {
+      "type": "string", 
+      "description": "ROC registration number (6-9 digits)",
+      "example": "119510619"
+    },
+    "registered_office": {
+      "type": "string",
+      "description": "Company registered address",
+      "example": "No.1-11, Padonmar Stadium, Yangon"
+    },
+    "directors": {
+      "type": "string",
+      "description": "Comma-separated list of directors",
+      "format": "Director 1, Director 2, Director 3, ...",
+      "example": "Min Min, Phyoe Min Kyaw, Soe Moe Thu"
+    },
+    "meeting_date": {
+      "type": "date",
+      "description": "Last/next meeting date (YYYY-MM-DD)",
+      "example": "2019-03-25"
+    },
+    "agenda": {
+      "type": "string", 
+      "description": "Meeting type",
+      "values": ["AGM", "EGM", "BM"],
+      "example": "AGM"
+    },
+    "director_name": {
+      "type": "string",
+      "description": "Primary authorized director",
+      "example": "Min Min"
+    }
+  },
+  "data_quality_notes": [
+    "company_name may contain registration number in parentheses",
+    "directors field is comma-separated, split by comma",
+    "meeting_date format is YYYY-MM-DD"
+  ]
+}

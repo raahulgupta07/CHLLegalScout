@@ -5,6 +5,8 @@ Database Session
 PostgreSQL database connection for AgentOS.
 """
 
+from os import getenv
+
 from agno.db.postgres import PostgresDb
 from agno.knowledge import Knowledge
 from agno.knowledge.embedder.openai import OpenAIEmbedder
@@ -45,7 +47,11 @@ def create_knowledge(name: str, table_name: str) -> Knowledge:
             db_url=db_url,
             table_name=table_name,
             search_type=SearchType.hybrid,
-            embedder=OpenAIEmbedder(id="text-embedding-3-small"),
+            embedder=OpenAIEmbedder(
+                id=getenv("EMBEDDING_MODEL", "openai/text-embedding-3-small"),
+                api_key=getenv("OPENROUTER_API_KEY") or getenv("OPENAI_API_KEY"),
+                base_url="https://openrouter.ai/api/v1",
+            ),
         ),
         contents_db=get_postgres_db(contents_table=f"{table_name}_contents"),
     )

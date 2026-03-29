@@ -12,11 +12,11 @@ from urllib.parse import quote
 def build_db_url() -> str:
     """Build database URL from environment variables."""
     driver = getenv("DB_DRIVER", "postgresql+psycopg")
-    user = getenv("DB_USER", "ai")
-    password = quote(getenv("DB_PASS", "ai"), safe="")
+    user = getenv("DB_USER", "scout")
+    password = quote(getenv("DB_PASS", ""), safe="")
     host = getenv("DB_HOST", "localhost")
     port = getenv("DB_PORT", "5432")
-    database = getenv("DB_DATABASE", "ai")
+    database = getenv("DB_DATABASE", "legalscout")
 
     return f"{driver}://{user}:{password}@{host}:{port}/{database}"
 

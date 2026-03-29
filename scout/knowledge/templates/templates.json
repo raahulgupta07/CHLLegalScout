@@ -1,0 +1,84 @@
+{
+  "templates": [
+    {
+      "name": "Annual General Meeting Minutes.docx",
+      "type": "AGM",
+      "required_fields": [
+        "company_name",
+        "company_registration_number",
+        "meeting_location",
+        "meeting_date",
+        "individual_shareholder_1_name",
+        "individual_shareholder_2_name",
+        "corporate_shareholder_3_name",
+        "pronoun",
+        "auditor_name",
+        "auditor_fee",
+        "financial_year_end_date",
+        "next_financial_year_end_date"
+      ],
+      "optional_fields": [
+        "director_name",
+        "date"
+      ]
+    },
+    {
+      "name": "Notice of Calling for Annual General Meeting.docx",
+      "type": "AGM",
+      "required_fields": [
+        "company_name",
+        "company_registration_number",
+        "director_name",
+        "meeting_date",
+        "meeting_time",
+        "meeting_location"
+      ]
+    },
+    {
+      "name": "Shareholders Resolution In Writing for Annual General Meeting.docx",
+      "type": "AGM",
+      "required_fields": [
+        "company_name",
+        "company_registration_number",
+        "individual_shareholder_name",
+        "corporate_shareholder_name",
+        "auditor_name",
+        "auditor_fee",
+        "meeting_date",
+        "financial_year_end_date"
+      ]
+    },
+    {
+      "name": "Shareholders Meeting Minutes - Director Resignation.docx",
+      "type": "EGM",
+      "required_fields": [
+        "company_name",
+        "company_registration_number",
+        "resigning_director_name",
+        "individual_shareholder_1_name",
+        "individual_shareholder_2_name",
+        "corporate_shareholder_3_name"
+      ]
+    },
+    {
+      "name": "Director Resignation Letter.docx",
+      "type": "LETTER",
+      "required_fields": [
+        "company_name",
+        "company_address",
+        "resigning_director_name",
+        "date"
+      ]
+    }
+  ],
+  "common_fields": {
+    "individual_shareholder_1_name": "First director from directors list",
+    "individual_shareholder_2_name": "Second director from directors list",
+    "corporate_shareholder_3_name": "Third director (if available)",
+    "meeting_location": "Use registered_office from company data",
+    "pronoun": "he/she/they (default: they)",
+    "financial_year_end_date": "Usually December 31 (2025-12-31)",
+    "auditor_name": "TBD if not specified",
+    "auditor_fee": "TBD if not specified"
+  }
+}
