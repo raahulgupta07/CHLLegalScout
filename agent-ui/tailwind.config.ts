@@ -1,0 +1,39 @@
+import type { Config } from 'tailwindcss'
+import tailwindcssAnimate from 'tailwindcss-animate'
+
+export default {
+  darkMode: ['class'],
+  content: [
+    './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/components/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/app/**/*.{js,ts,jsx,tsx,mdx}'
+  ],
+  theme: {
+    extend: {
+      colors: {
+        primary: '#111113',
+        primaryAccent: '#FFFFFF',
+        brand: '#FF4017',
+        background: {
+          DEFAULT: '#FFFFFF',
+          secondary: '#F4F4F5'
+        },
+        secondary: '#18181B',
+        border: 'rgba(var(--color-border-default))',
+        accent: '#ECECED',
+        card: '#FFFFFF',
+        muted: '#52525B',
+        destructive: '#E53935',
+        positive: '#22C55E'
+      },
+      fontFamily: {
+        geist: 'var(--font-geist-sans)',
+        dmmono: 'var(--font-dm-mono)'
+      },
+      borderRadius: {
+        xl: '10px'
+      }
+    }
+  },
+  plugins: [tailwindcssAnimate]
+} satisfies Config
