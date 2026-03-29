@@ -1,105 +1,470 @@
 # Legal Scout
 
-AI-powered legal document automation for Myanmar corporate law. Generate AGM minutes, director consents, shareholder resolutions and more through a natural language chat interface.
+AI-powered legal document automation system for Myanmar corporate law. Generate AGM minutes, director consents, shareholder resolutions and more through a natural language chat interface powered by AI.
 
-## Install
+---
+
+## What It Does
+
+- **Chat Interface** — Ask "Create AGM for City Holdings" and the AI agent finds the template, looks up company data, fills placeholders, generates the document
+- **Template Management** — Upload Word `.docx` templates with `{{placeholders}}`, AI analyzes and trains on each template (15-step deep training)
+- **Company Management** — Add companies via DICA PDF upload (AI extracts all fields automatically) or manual form entry
+- **Document Generation** — Auto-fill templates with company data from database, download as `.docx`
+- **PDF Preview** — Preview templates with yellow-highlighted placeholders
+- **Deep Training** — AI analyzes templates for field types, legal references, document workflows, Q&A pairs, cross-template relationships
+
+---
+
+## Quick Install (Any Server with Docker)
+
+### Step 1: Clone
 
 ```bash
 git clone https://github.com/raahulgupta07/CHLLegalScout.git
 cd CHLLegalScout
+```
+
+### Step 2: Configure
+
+```bash
 cp .env.example .env
 ```
 
-Edit `.env` — fill in these values:
+Edit `.env` with your values:
 
 ```bash
-# Get from https://openrouter.ai/keys
-OPENROUTER_API_KEY=sk-or-v1-your-key
+# REQUIRED — Get from https://openrouter.ai/keys
+OPENROUTER_API_KEY=sk-or-v1-your-actual-key
 
-# Generate these (run in terminal):
-JWT_SECRET_KEY=$(openssl rand -hex 32)
-DB_PASS=$(openssl rand -base64 24)
+# REQUIRED — Generate these (run each command, paste output into .env)
+# openssl rand -hex 32
+JWT_SECRET_KEY=paste-output-here
 
-# Set your admin password (10+ chars)
+# openssl rand -base64 24
+DB_PASS=paste-output-here
+
+# REQUIRED — Your admin login (password must be 10+ characters)
+ADMIN_EMAIL=admin@yourcompany.com
 ADMIN_PASSWORD=YourStrongPassword123
+
+# OPTIONAL — Change if port 80 is already used
+PORT=80
+
+# OPTIONAL — Keep defaults
+DB_USER=scout
+DB_DATABASE=legalscout
 ```
 
-Then run:
+### Step 3: Build and Run
 
 ```bash
 docker compose up -d --build
 ```
 
-Wait ~5 minutes for first build. Done.
+First build takes ~5 minutes (downloads images, installs dependencies). After that, starts in seconds.
 
-## Access
-
-| What | URL |
-|------|-----|
-| App | http://your-server-ip |
-| Login | your `ADMIN_EMAIL` / `ADMIN_PASSWORD` from `.env` |
-
-> If port 80 is taken, set `PORT=8080` in `.env`
-
-## Setup (after first login)
-
-1. Go to `/admin/templates` — upload `.docx` Word templates
-2. Go to `/admin/companies` — add companies (DICA PDF or manual entry)
-3. Click **Train Agent** on companies page
-4. Click **Start Training** on templates page
-5. Go to chat — ask "Create AGM for [company name]"
-
-## Requirements
-
-- Docker 20+ with Docker Compose v2
-- 2 CPU, 4GB RAM, 20GB disk
-- One available port (default 80)
-
-## Update
+### Step 4: Verify
 
 ```bash
-git pull
-docker compose up -d --build
+# Check containers are running
+docker compose ps
+
+# Check health
+curl http://localhost/health
 ```
+
+You should see:
+```json
+{"status": "healthy", "environment": "production", "checks": {"database": {"status": "connected"}, "api_key": {"status": "set"}}}
+```
+
+### Step 5: Open and Setup
+
+1. Open **http://your-server-ip** (or `http://localhost` if local)
+2. Login with your `ADMIN_EMAIL` / `ADMIN_PASSWORD`
+3. Go to `/admin/templates` — click **Upload** — select `.docx` template files
+4. Go to `/admin/companies` — click **Create New Company** — upload DICA PDF or fill manually
+5. Go to `/admin/templates` — click **Start Training** (trains AI on your templates)
+6. Go to `/admin/companies` — click **Train Agent** (teaches AI about your companies)
+7. Go to home page — start chatting: "Create AGM for [company name]"
+
+---
+
+## Install on AWS (EC2)
+
+### Step 1: Launch EC2 Instance
+
+- **AMI**: Ubuntu 22.04 LTS
+- **Instance type**: `t3.medium` (2 CPU, 4GB RAM) or larger
+- **Storage**: 30GB+ SSD
+- **Security Group**: Allow inbound ports:
+  - 22 (SSH)
+  - 80 (HTTP) or your chosen PORT
+  - 443 (HTTPS, if using SSL)
+
+### Step 2: SSH and Install Docker
+
+```bash
+ssh -i your-key.pem ubuntu@your-ec2-ip
+
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install Docker
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+
+# Install Docker Compose plugin
+sudo apt install -y docker-compose-plugin
+
+# Logout and login again for docker group to take effect
+exit
+ssh -i your-key.pem ubuntu@your-ec2-ip
+
+# Verify
+docker --version
+docker compose version
+```
+
+### Step 3: Clone and Configure
+
+```bash
+cd /opt
+sudo git clone https://github.com/raahulgupta07/CHLLegalScout.git legalscout
+sudo chown -R $USER:$USER /opt/legalscout
+cd /opt/legalscout
+
+# Create .env
+cp .env.example .env
+
+# Generate secrets and edit
+echo "JWT_SECRET_KEY=$(openssl rand -hex 32)"
+echo "DB_PASS=$(openssl rand -base64 24)"
+
+nano .env
+# Paste your OPENROUTER_API_KEY, generated secrets, admin credentials
+```
+
+### Step 4: Deploy
+
+```bash
+docker compose up -d --build
+
+# Verify
+docker compose ps
+curl http://localhost/health
+```
+
+### Step 5: Access
+
+Open `http://your-ec2-public-ip` in your browser.
+
+### Optional: Add HTTPS with Nginx
+
+```bash
+# Install nginx and certbot
+sudo apt install -y nginx certbot python3-certbot-nginx
+
+# Point your domain to EC2 IP (via Route 53 or DNS provider)
+
+# Create nginx config
+sudo tee /etc/nginx/sites-available/legalscout <<'NGINX'
+server {
+    listen 80;
+    server_name yourdomain.com;
+
+    location / {
+        proxy_pass http://localhost:80;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        client_max_body_size 50M;
+    }
+}
+NGINX
+
+sudo ln -s /etc/nginx/sites-available/legalscout /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+
+# Get SSL certificate
+sudo certbot --nginx -d yourdomain.com
+
+# Auto-renew
+sudo certbot renew --dry-run
+```
+
+---
+
+## Install on Any VPS (DigitalOcean, Linode, Hetzner, etc.)
+
+Same as AWS steps 2-5 above. Any Linux server with Docker works:
+
+```bash
+# Install Docker
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+
+# Clone and configure
+git clone https://github.com/raahulgupta07/CHLLegalScout.git
+cd CHLLegalScout
+cp .env.example .env
+nano .env   # Fill in your values
+
+# Deploy
+docker compose up -d --build
+
+# Done
+curl http://localhost/health
+```
+
+---
+
+## Port Conflicts
+
+If port 80 is already used by another service on the same server:
+
+```bash
+# Option 1: Change port in .env
+PORT=8080
+
+# Then access at http://your-server:8080
+
+# Option 2: Use nginx reverse proxy (recommended for production)
+# See "Add HTTPS with Nginx" section above
+# Set PORT=8080 and proxy from nginx port 80 → 8080
+```
+
+---
 
 ## Architecture
 
 ```
-Port 80
-  └── scout-api (FastAPI + Next.js frontend)
-        └── scout-db (PostgreSQL, internal only)
+Internet → Port 80 (or $PORT)
+              │
+    ┌─────────▼──────────────────────────────────┐
+    │  scout-api                                   │
+    │  (FastAPI + Next.js static frontend)         │
+    │                                              │
+    │  /api/*        → REST API (50+ endpoints)    │
+    │  /agents/*     → AI chat (streaming)         │
+    │  /documents/*  → file downloads              │
+    │  /health       → health check                │
+    │  /*            → frontend (React)            │
+    └─────────┬──────────────────────────────────┘
+              │ internal
+    ┌─────────▼──────────────────────────────────┐
+    │  scout-db                                    │
+    │  (PostgreSQL 18 + pgvector)                  │
+    │  13+ tables, vector search                   │
+    └──────────────────────────────────────────────┘
 ```
 
-2 containers. Single port. All configuration from admin UI.
+**2 Docker containers. 1 external port. No other dependencies.**
+
+---
 
 ## Features
 
-- Chat with AI to generate legal documents
-- Upload Word templates with {{placeholders}}
-- Add companies via DICA PDF (AI extracts all fields) or manual form
-- 15-step deep template training (field analysis, legal references, Q&A generation)
+### Chat Interface
+- Natural language document requests
+- AI agent with 27+ tools
+- Streaming responses
+- Option buttons (a/b/c/d/e) for clarification
+- Document download cards
+- Session history
+
+### Template Management (`/admin/templates`)
+- Upload `.docx` Word templates
+- 15-step deep AI training per template:
+  1. Placeholder extraction
+  2. Document content reading
+  3. AI analysis (category, purpose, when to use)
+  4. Metadata save
+  5. Field classification (DB auto-fill vs user-input)
+  6. Field-to-DB column mapping
+  7. Knowledge base storage
+  8. Vector embedding generation
+  9. PDF preview with yellow-highlighted placeholders
+  10. Field deep analysis (data type, format, validation)
+  11. Legal reference extraction (Myanmar Companies Law 2017)
+  12. Sample filled document generation
+  13. Document workflow mapping (before/after documents)
+  14. Q&A pairs generation for knowledge base
+  15. Cross-template relationship mapping + confidence scoring
+- Real-time streaming training logs
+- Template detail popup with all metadata
+- Confidence score per template (0-100%)
 - PDF preview with highlighted placeholders
-- Document download and email
-- S3 cloud storage (optional, configure from Settings)
-- JWT authentication with role-based access
+- Download original templates
+
+### Company Management (`/admin/companies`)
+- Add via **DICA PDF upload** (AI extracts all fields automatically)
+- Add via **manual form** entry
+- Full CRUD (view, edit, delete)
+- Directors and shareholders management
+- Company completeness indicator
+- Real-time streaming training with per-company AI analysis
+- Compliance status, risk flags, missing data detection
+
+### Document Generation
+- Auto-fill Word templates with company data
+- Validate filled documents (report unfilled placeholders)
+- Download generated `.docx` files
+- Document history with date filtering
+- Version tracking
+
+### Admin Panel
+- **Dashboard** — KPIs, stats, recent activity
+- **Documents** — Generated document history
+- **Templates** — Upload, train, preview
+- **Companies** — Add, edit, train
+- **Knowledge** — AI training status
+- **Users** — User management (admin/editor/user roles)
+- **Settings** — AI models, S3 storage, email, timezone
+- **Emails** — Email sending logs
+
+### Security
+- JWT authentication with bcrypt password hashing
+- Strong secrets enforced on startup
+- Role-based access control
+- CORS protection (same-origin, no wildcard)
+- File upload path traversal protection
+- SQL injection protection
+- Security headers (HSTS, X-Frame-Options, etc.)
 - Activity audit logging
+- Log rotation (10MB x 3 files)
+- Non-root Docker user
+
+### Storage
+- Local filesystem (Docker volume, persists across restarts)
+- Optional S3 cloud storage (AWS S3, MinIO, Cloudflare R2, Backblaze B2)
+- Configure S3 from admin Settings — no .env changes needed
+- S3 syncs templates, generated docs, DICA PDFs
+
+---
 
 ## Tech Stack
 
 | Component | Technology |
 |-----------|-----------|
-| Frontend | Next.js 15, React 18, TypeScript, Tailwind CSS |
-| Backend | FastAPI, Python 3.12, Agno AI Framework |
-| Database | PostgreSQL 18 + pgvector |
-| AI Models | GPT-5.4 Mini (chat), Claude 3.5 Haiku (training) via OpenRouter |
-| Deploy | Docker Compose |
+| **Frontend** | Next.js 15, React 18, TypeScript, Tailwind CSS, Zustand, Radix UI, Framer Motion |
+| **Backend** | FastAPI 0.129, Python 3.12, Agno 2.5 (AI agent framework) |
+| **Database** | PostgreSQL 18 + pgvector (vector similarity search) |
+| **AI Models** | GPT-5.4 Mini (chat), Claude 3.5 Haiku (training), text-embedding-3-small — all via OpenRouter |
+| **Document** | python-docx (Word), LibreOffice (PDF conversion), openpyxl (Excel parsing) |
+| **Auth** | JWT (PyJWT) + bcrypt |
+| **Deploy** | Docker Compose, single multi-stage Dockerfile |
+| **Monitoring** | Prometheus + Grafana (optional) |
+
+---
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPENROUTER_API_KEY` | Yes | OpenRouter API key for all AI operations |
+| `JWT_SECRET_KEY` | Yes | JWT signing key (`openssl rand -hex 32`) |
+| `ADMIN_PASSWORD` | Yes | Admin login password (10+ chars) |
+| `DB_PASS` | Yes | Database password (`openssl rand -base64 24`) |
+| `ADMIN_EMAIL` | Yes | Admin login email |
+| `DB_USER` | No | Database user (default: `scout`) |
+| `DB_DATABASE` | No | Database name (default: `legalscout`) |
+| `PORT` | No | External port (default: `80`) |
+
+**Everything else is configured from the admin UI:**
+AI models, email/SMTP, S3 storage, timezone.
+
+---
+
+## Commands Reference
+
+```bash
+# Start
+docker compose up -d --build
+
+# Stop
+docker compose down
+
+# View logs
+docker compose logs -f scout-api
+
+# Check status
+docker compose ps
+curl http://localhost/health
+
+# Update to latest version
+git pull
+docker compose up -d --build
+
+# Reset database (WARNING: deletes all data)
+docker compose down -v
+docker compose up -d --build
+
+# Check database
+docker compose exec scout-db psql -U scout -d legalscout -c "SELECT COUNT(*) FROM templates;"
+
+# Run migrations manually
+docker compose exec scout-api python -m db.migrate
+```
+
+---
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---------|-----|
-| Port 80 taken | `PORT=8080` in `.env` |
-| Security error on startup | Set strong `JWT_SECRET_KEY` and `ADMIN_PASSWORD` |
-| Health check fails | `docker compose logs scout-db` — check DB credentials |
-| Agent gives generic answers | Train templates and companies first |
-| Blank page | `docker compose up -d --build` |
+| Port 80 taken | Set `PORT=8080` in `.env` |
+| "SECURITY FATAL" on startup | Set strong `JWT_SECRET_KEY` (64 chars) and `ADMIN_PASSWORD` (10+ chars) |
+| Health check returns 503 | `docker compose logs scout-db` — check DB credentials |
+| Can't login | Verify `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env`, then `docker compose restart` |
+| Templates not showing | Upload via `/admin/templates` |
+| Companies not showing | Add via `/admin/companies` |
+| Agent gives generic answers | Train both templates and companies first |
+| Download links broken | `docker compose restart scout-api` |
+| Build fails | `docker compose build --no-cache` |
+| Disk full | `docker system prune -f` |
+| Container keeps restarting | `docker compose logs scout-api --tail 50` — check for errors |
+
+---
+
+## Project Structure
+
+```
+CHLLegalScout/
+├── app/                          # FastAPI backend
+│   ├── main.py                   # API server (50+ endpoints)
+│   ├── model_config.py           # AI model configuration
+│   ├── s3_storage.py             # S3 cloud storage
+│   └── logging_config.py         # Structured logging
+├── agent-ui/                     # Next.js frontend
+│   ├── src/app/                  # Pages (chat, admin, login)
+│   ├── src/components/           # UI components
+│   └── src/lib/                  # API client, utilities
+├── scout/                        # AI agent
+│   ├── agent.py                  # Agent definition + system prompt
+│   └── tools/                    # 11 tool modules
+├── db/                           # Database
+│   ├── init.sql                  # Schema
+│   └── migration_*.sql           # Migrations
+├── documents/                    # File storage (Docker volume)
+│   └── legal/
+│       ├── templates/            # Uploaded .docx templates
+│       ├── output/               # Generated documents
+│       ├── uploads/              # DICA PDF uploads
+│       └── previews/             # Cached PDF previews
+├── compose.yaml                  # Docker Compose
+├── Dockerfile                    # Multi-stage build
+├── .env.example                  # Environment template
+├── DEPLOY.md                     # Deployment guide
+└── CLAUDE.md                     # Technical documentation
+```
+
+---
+
+## License
+
+Private repository. All rights reserved.
