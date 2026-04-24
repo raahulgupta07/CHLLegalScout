@@ -130,6 +130,62 @@ EXA_API_KEY=...           # Optional — only loaded when set, never embedded in
 
 ---
 
+## Agent Tools (27+)
+
+### Document Generation
+| Tool | Purpose |
+|------|---------|
+| `generate_document` | Fill template with company data, produce `.docx` |
+| `create_document` | Create a new document record |
+| `prepare_document` | Preview/prepare document before final generation |
+| `preview_document` | Preview document with highlighted placeholders |
+| `analyze_template` | Analyze a Word template's structure |
+
+### Company Lookup
+| Tool | Purpose |
+|------|---------|
+| `get_company` | Full company data from DB |
+| `get_directors` | Directors list for a company |
+| `get_shareholders` | Shareholders/members for a company |
+| `check_company` | Verify company exists + data completeness |
+| `list_companies` | List all available companies |
+
+### Template Intelligence
+| Tool | Purpose |
+|------|---------|
+| `list_templates` / `get_known_templates` | List all trained templates |
+| `analyze_new_template` | Deep-analyze a newly uploaded template |
+| `save_template_to_knowledge` | Save template analysis to KB |
+| `find_matching_templates` | Find templates matching a user request |
+| `get_template_data` | Full training data for a template |
+| `get_data_for_template` | Company data mapped to template fields |
+
+### Knowledge Base
+| Tool | Purpose |
+|------|---------|
+| `search_knowledge` | Semantic vector search across KB |
+| `lookup_knowledge` | Fast key-value lookup |
+| `list_knowledge_sources` | List all knowledge sources |
+| `quick_info` | Fast factual lookups |
+
+### Document Tracking
+| Tool | Purpose |
+|------|---------|
+| `list_tracked_documents` | List generated documents with filters |
+| `get_document_info` | Details of a specific document |
+| `get_document_stats` | Document generation statistics |
+
+### Other
+| Tool | Purpose |
+|------|---------|
+| `get_clarification_info` | Clarify ambiguous requests |
+| `send_email` | Email with optional document attachment (requires SMTP) |
+| `read_file` / `list_files` / `save_file` | File operations in documents dir |
+| `search_content` | Search within document file contents |
+| `web_search_exa` | Web search via Exa API (optional, if `EXA_API_KEY` set) |
+
+---
+
 ## Data Flow
 
 ### Document Generation
@@ -147,25 +203,30 @@ User: "Create AGM for City Holdings"
 - **Manual form entry** → saves to companies table
 - **No Excel files** — everything is DB-only
 
-### Template Training (15 steps)
-```
-1.  Extract {{placeholders}}
-2.  Read document content
-3.  AI analysis (category, purpose, when_to_use)
-4.  Save metadata to DB
-5.  Classify fields (DB auto-fill vs user-input)
-5.5 Field → DB column mapping
-6.  Knowledge base storage
-7.  Vector embedding
-8.  PDF preview (with yellow-highlighted placeholders)
-9.  Field deep analysis (type, format, validation per field)
-10. Legal reference extraction (Myanmar Companies Law 2017)
-11. Sample filled document generation
-12. Document workflow mapping (before/after)
-13. Q&A pairs for agent knowledge base
-14. Cross-template relationship mapping
-15. Confidence scoring (0-100%)
-```
+### Template Training Pipeline (15 steps)
+
+Triggered from `/admin/templates` → "Train Agent" → "Start Training". Streams progress via SSE.
+
+| Step | What | AI Model | Output |
+|------|------|----------|--------|
+| 1 | Extract `{{placeholders}}` from `.docx` | None (local regex) | Field list |
+| 2 | Read full document text (paragraphs + tables) | None (local) | Content string |
+| 3 | AI analysis (category, purpose, when_to_use, legal refs) | Gemini 3 Flash | JSON metadata |
+| 4 | Save metadata to `templates` table (37 columns) | None (DB write) | — |
+| 5 | Classify fields: `db_field` vs `user_input` | Gemini 3.1 Flash Lite | Classification JSON |
+| 5.5 | Map placeholders → exact DB columns | Gemini 3.1 Flash Lite | Field mapping JSON |
+| 6 | Store in `knowledge_vec` + `knowledge_lookup` | None (DB write) | KB entries |
+| 7 | Generate vector embedding | text-embedding-3-small | 1536-dim vector |
+| 8 | Create PDF preview (yellow-highlighted placeholders) | None (LibreOffice) | Cached PDF |
+| 9 | Deep field analysis (type, format, validation per field) | Gemini 3 Flash | Per-field JSON |
+| 10 | Legal reference extraction (Myanmar Companies Law 2017) | Gemini 3 Flash | Sections + compliance |
+| 11 | Sample filled document (realistic Myanmar data) | Gemini 3 Flash | Sample values JSON |
+| 12 | Document workflow (trigger, before/after docs) | Gemini 3 Flash | Workflow JSON |
+| 13 | Q&A pairs (10 practical questions + answers) | Gemini 3 Flash | Stored in `knowledge_vec` |
+| 14 | Cross-template relationships (prerequisite/follow-up/related) | Gemini 3 Flash | Relationships JSON |
+| 15 | Confidence score (0-100%) based on which steps passed | None (local calc) | Score integer |
+
+**AI calls per template: ~9 total** — 1x Gemini 3 Flash (step 3) + 2x Gemini 3.1 Flash Lite (steps 5, 5.5) + 1x text-embedding-3-small (step 7) + 6x Gemini 3 Flash (steps 9-14)
 
 ---
 

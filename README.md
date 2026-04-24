@@ -271,7 +271,7 @@ Internet → Port 80 (or $PORT)
 
 ### Chat Interface (DASH-inspired brutalist design)
 - Natural language document requests
-- AI agent with 27+ tools
+- AI agent with 27+ tools (document generation, company lookup, template intelligence, knowledge base, email, web search)
 - DASH-style CLI terminal blocks showing tool execution (`$ scout exec --agent legal`)
 - Streaming animation with green cursor blink + traffic light dots
 - Answer box with stamp shadow, streaming indicator until complete
@@ -285,24 +285,40 @@ Internet → Port 80 (or $PORT)
 - Document download cards
 - Session history with agent name + time ago
 
+### AI Agent Capabilities (27+ Tools)
+- **Document Generation** — `generate_document`, `create_document`, `prepare_document`, `preview_document`, `analyze_template`
+- **Company Lookup** — `get_company`, `get_directors`, `get_shareholders`, `check_company`, `list_companies`
+- **Template Intelligence** — `list_templates`, `analyze_new_template`, `find_matching_templates`, `get_template_data`, `get_data_for_template`
+- **Knowledge Base** — `search_knowledge` (semantic vector search), `lookup_knowledge` (fast key-value), `quick_info`
+- **Document Tracking** — `list_tracked_documents`, `get_document_info`, `get_document_stats`
+- **Communication** — `send_email` (with optional document attachment, requires SMTP config)
+- **File Operations** — `read_file`, `list_files`, `save_file`, `search_content`
+- **Web Search** — `web_search_exa` (optional, requires `EXA_API_KEY`)
+
 ### Template Management (`/admin/templates`)
 - Upload `.docx` Word templates
-- 15-step deep AI training per template:
-  1. Placeholder extraction
-  2. Document content reading
-  3. AI analysis (category, purpose, when to use)
-  4. Metadata save
-  5. Field classification (DB auto-fill vs user-input)
-  6. Field-to-DB column mapping
-  7. Knowledge base storage
-  8. Vector embedding generation
-  9. PDF preview with yellow-highlighted placeholders
-  10. Field deep analysis (data type, format, validation)
-  11. Legal reference extraction (Myanmar Companies Law 2017)
-  12. Sample filled document generation
-  13. Document workflow mapping (before/after documents)
-  14. Q&A pairs generation for knowledge base
-  15. Cross-template relationship mapping + confidence scoring
+- 15-step deep AI training per template (streamed via SSE in real-time):
+
+| Step | What | AI Model |
+|------|------|----------|
+| 1 | Extract `{{placeholders}}` from `.docx` | Local (regex) |
+| 2 | Read full document text | Local |
+| 3 | AI analysis (category, purpose, when_to_use, legal refs) | Gemini 3 Flash |
+| 4 | Save metadata to DB (37 columns) | DB write |
+| 5 | Classify fields: `db_field` vs `user_input` | Gemini 3.1 Flash Lite |
+| 5.5 | Map placeholders to exact DB columns | Gemini 3.1 Flash Lite |
+| 6 | Store in knowledge base (vector + lookup) | DB write |
+| 7 | Generate vector embedding (1536 dimensions) | text-embedding-3-small |
+| 8 | PDF preview with yellow-highlighted placeholders | LibreOffice |
+| 9 | Deep field analysis (type, format, validation) | Gemini 3 Flash |
+| 10 | Legal reference extraction (Myanmar Companies Law 2017) | Gemini 3 Flash |
+| 11 | Sample filled document (realistic Myanmar data) | Gemini 3 Flash |
+| 12 | Document workflow (trigger, before/after docs) | Gemini 3 Flash |
+| 13 | Q&A pairs (10 practical questions + answers) | Gemini 3 Flash |
+| 14 | Cross-template relationships | Gemini 3 Flash |
+| 15 | Confidence score (0-100%) | Local calculation |
+
+- **~9 AI calls per template** — cost-optimized with Gemini models (70-94% cheaper than Claude)
 - Real-time streaming training logs
 - Template detail popup with all metadata
 - Confidence score per template (0-100%)
