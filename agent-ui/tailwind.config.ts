@@ -15,8 +15,8 @@ export default {
         primaryAccent: '#FFFFFF',
         brand: '#FF4017',
         background: {
-          DEFAULT: '#FFFFFF',
-          secondary: '#F4F4F5'
+          DEFAULT: '#feffd6',
+          secondary: '#f0f1c8'
         },
         secondary: '#18181B',
         border: 'rgba(var(--color-border-default))',

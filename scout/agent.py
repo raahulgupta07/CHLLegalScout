@@ -6,7 +6,26 @@ Run:
     python -m scout
 """
 
+import logging
+import re
 from os import getenv
+
+
+def _sanitize_for_prompt(text: str, max_len: int = 200) -> str:
+    """Strip characters that could be used for prompt injection."""
+    if not text:
+        return ""
+    # Remove instruction-like patterns
+    text = re.sub(
+        r'(?i)(ignore|forget|disregard)\s+(all|previous|above)\s+(instructions?|rules?|prompts?)',
+        '[filtered]', text,
+    )
+    text = re.sub(
+        r'(?i)(you are now|new instructions?|system prompt|override)',
+        '[filtered]', text,
+    )
+    # Truncate
+    return text[:max_len].strip()
 
 from agno.agent import Agent
 from agno.learn import (
@@ -95,13 +114,20 @@ def send_email_tool(to_email: str, subject: str, message: str, attachment_path: 
                 from email.mime.multipart import MIMEMultipart
                 from email.mime.base import MIMEBase
                 from email import encoders
-                from psycopg import connect
 
-                conn = get_db_conn()
-                cur = conn.cursor()
-                cur.execute("SELECT key, value FROM app_settings WHERE key LIKE 'smtp_%%'")
-                smtp = {r[0]: r[1] for r in cur.fetchall()}
-                cur.close(); conn.close()
+                conn = None
+                try:
+                    conn = get_db_conn()
+                    cur = conn.cursor()
+                    cur.execute("SELECT key, value FROM app_settings WHERE key LIKE 'smtp_%%'")
+                    smtp = {r[0]: r[1] for r in cur.fetchall()}
+                    cur.close()
+                except Exception as e:
+                    logging.getLogger("legalscout").warning(f"DB error in send_email_tool: {e}")
+                    smtp = {}
+                finally:
+                    if conn:
+                        conn.close()
 
                 smtp_host = smtp.get("smtp_host") or os.getenv("SMTP_HOST", "")
                 smtp_port = int(smtp.get("smtp_port") or os.getenv("SMTP_PORT", "587"))
@@ -138,8 +164,8 @@ def send_email_tool(to_email: str, subject: str, message: str, attachment_path: 
             try:
                 from app.main import send_notification_email
                 send_notification_email(to_email, subject, message)
-            except Exception:
-                pass
+            except Exception as e:
+                logging.getLogger("legalscout").warning(f"Failed to send email to '{to_email}': {e}")
             return {"success": True, "message": f"Email sent to {to_email}"}
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -223,10 +249,12 @@ base_tools: list = (
         save_intent_discovery,
     ]
     + [t for t in _tools_to_add if t is not None]
-    + [
-        send_email_tool,
-        MCPTools(url=f"https://mcp.exa.ai/mcp?exaApiKey={getenv('EXA_API_KEY', '')}&tools=web_search_exa"),
-    ]
+    + [send_email_tool]
+    + (
+        [MCPTools(url=f"https://mcp.exa.ai/mcp?exaApiKey={_exa_key}&tools=web_search_exa")]
+        if (_exa_key := getenv('EXA_API_KEY', ''))
+        else []
+    )
 )
 
 # ---------------------------------------------------------------------------
@@ -234,6 +262,7 @@ base_tools: list = (
 # ---------------------------------------------------------------------------
 def _build_template_knowledge() -> str:
     """Build template knowledge section from database. Called at startup and after training."""
+    conn = None
     try:
         from scout.tools.template_analyzer import get_db_connection
         conn = get_db_connection()
@@ -248,7 +277,7 @@ def _build_template_knowledge() -> str:
             FROM templates ORDER BY name
         """)
         rows = cur.fetchall()
-        cur.close(); conn.close()
+        cur.close()
 
         if not rows:
             return "No templates loaded yet. User needs to upload templates first."
@@ -300,11 +329,11 @@ def _build_template_knowledge() -> str:
 
             lines.append(f"**{name}** ({category}, {complexity}, {jurisdiction})")
             if purpose:
-                lines.append(f"  Purpose: {purpose}")
+                lines.append(f"  Purpose: {_sanitize_for_prompt(purpose)}")
             if when_to_use:
-                lines.append(f"  When to use: {when_to_use}")
+                lines.append(f"  When to use: {_sanitize_for_prompt(when_to_use)}")
             if legal_context:
-                lines.append(f"  Legal context: {legal_context}")
+                lines.append(f"  Legal context: {_sanitize_for_prompt(legal_context)}")
             if legal_refs:
                 lines.append(f"  Legal references: {', '.join(str(r) for r in legal_refs)}")
             if db_fields:
@@ -333,19 +362,19 @@ def _build_template_knowledge() -> str:
             if field_deep:
                 desc_parts = []
                 for fn, fi in list(field_deep.items())[:10]:
-                    d = fi.get("description", "")
-                    dt = fi.get("data_type", "")
+                    d = _sanitize_for_prompt(fi.get("description", ""), max_len=100)
+                    dt = _sanitize_for_prompt(fi.get("data_type", ""), max_len=50)
                     if d:
                         desc_parts.append(f"{fn}: {d} ({dt})" if dt else f"{fn}: {d}")
                 if desc_parts:
                     lines.append(f"  Field details: {'; '.join(desc_parts)}")
             if common_mistakes:
-                lines.append(f"  Common mistakes: {'; '.join(str(m) for m in common_mistakes[:3])}")
+                lines.append(f"  Common mistakes: {'; '.join(_sanitize_for_prompt(str(m)) for m in common_mistakes[:3])}")
             if prerequisites:
                 lines.append(f"  Prerequisites: {', '.join(str(p) for p in prerequisites)}")
             if sample_filled:
-                preview = ", ".join(f"{k}={v}" for k, v in list(sample_filled.items())[:5])
-                lines.append(f"  Sample values: {preview}")
+                preview = ", ".join(f"{k}={_sanitize_for_prompt(str(v), max_len=100)}" for k, v in list(sample_filled.items())[:5])
+                lines.append(f"  Sample values: {_sanitize_for_prompt(preview, max_len=500)}")
             if doc_workflow:
                 if doc_workflow.get("before"):
                     lines.append(f"  Documents needed before: {', '.join(doc_workflow['before'])}")
@@ -360,7 +389,11 @@ def _build_template_knowledge() -> str:
 
         return "\n".join(lines)
     except Exception as e:
+        logging.getLogger("legalscout").warning(f"DB error in _build_template_knowledge: {e}")
         return f"Template knowledge unavailable: {e}"
+    finally:
+        if conn:
+            conn.close()
 
 
 TEMPLATE_KNOWLEDGE = _build_template_knowledge()
@@ -1299,10 +1332,10 @@ Example: Just type "yes" or "no" to continue.
 # ---------------------------------------------------------------------------
 # Create Agent
 # ---------------------------------------------------------------------------
-from app.model_config import get_model as _get_model
+from app.model_config import get_model as _get_model, OPENROUTER_BASE_URL as _OPENROUTER_BASE_URL
 from db.connection import get_db_conn
 
-_chat_model = _get_model("chat") or "gpt-5.4-mini"
+_chat_model = _get_model("chat") or "openai/gpt-5.4-mini"
 
 scout = Agent(
     id="scout",
@@ -1310,7 +1343,7 @@ scout = Agent(
     model=OpenAIChat(
         id=_chat_model,
         api_key=getenv("OPENROUTER_API_KEY") or getenv("OPENAI_API_KEY"),
-        base_url="https://openrouter.ai/api/v1",
+        base_url=_OPENROUTER_BASE_URL,
     ),
     db=agent_db,
     instructions=INSTRUCTIONS,

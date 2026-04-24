@@ -16,15 +16,16 @@ import jwt
 import bcrypt
 
 from agno.os import AgentOS
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from scout.agent import scout  # single agent (fallback)
 from db import get_postgres_db
 from app.model_config import (get_model, get_all_models, save_models, clear_cache as clear_model_cache,
-    get_timezone, save_timezone, get_current_datetime, get_current_date)
+    get_timezone, save_timezone, get_current_datetime, get_current_date, OPENROUTER_BASE_URL)
+from db.connection import get_db_conn
 from app.s3_storage import s3_upload_async, s3_delete_async, s3_download, s3_test, s3_sync_all, s3_list, is_s3_enabled, save_s3_config, _get_s3_config, _local_to_s3_key
 
 # ---------------------------------------------------------------------------
@@ -42,6 +43,11 @@ def add_cors_middleware(app: FastAPI):
 
     if cors_origins and cors_origins != "*":
         allow_origins = [origin.strip() for origin in cors_origins.split(",")]
+    elif cors_origins == "*":
+        # Explicitly reject wildcard CORS in production
+        import logging
+        logging.getLogger("legalscout.security").warning("CORS_ORIGINS='*' is insecure — using same-origin only")
+        allow_origins = []
     else:
         # Single-port architecture: same-origin requests don't need CORS
         frontend = getenv("FRONTEND_HOST", "")
@@ -148,6 +154,11 @@ from starlette.responses import Response as StarletteResponse
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: StarletteRequest, call_next):
+        # Reject oversized chat requests (backend enforcement of input limit)
+        if request.method == "POST" and "/agents/" in str(request.url):
+            content_length = request.headers.get("content-length")
+            if content_length and int(content_length) > 50000:
+                return JSONResponse({"error": "Message too large (max 50KB)"}, status_code=413)
         response: StarletteResponse = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "SAMEORIGIN"
@@ -163,9 +174,19 @@ app.add_middleware(SecurityHeadersMiddleware)
 # ---------------------------------------------------------------------------
 # Startup: Auto-sync templates + cleanup stale knowledge
 # ---------------------------------------------------------------------------
-@app.on_event("startup")
+@app.on_event("startup")  # TODO: migrate to lifespan context manager when upgrading to FastAPI 1.0
 async def startup_sync():
     """On startup: validate config, sync templates, clean KB, rebuild agent knowledge."""
+    # Ensure all required document directories exist (defense-in-depth beyond Docker)
+    import logging as _log
+    for _d in [
+        "/documents/legal/templates", "/documents/legal/data",
+        "/documents/legal/output", "/documents/legal/uploads",
+        "/documents/legal/previews", "/documents/legal/knowledge",
+        "/documents/legal/extracts",
+    ]:
+        Path(_d).mkdir(parents=True, exist_ok=True)
+
     # Version
     from pathlib import Path as _P
     _vf = _P("/app/VERSION")
@@ -198,8 +219,8 @@ async def startup_sync():
             print(f"[STARTUP] WARNING: {_total - _applied} pending migration(s) — run 'python -m db.migrate'")
         else:
             print(f"[STARTUP] Migrations: {_applied} applied (up to date)")
-    except Exception:
-        pass
+    except Exception as e:
+        _log.getLogger("legalscout").warning(f"Migration check failed: {e}")
 
     # Rebuild agent template knowledge from DB
     try:
@@ -233,6 +254,46 @@ def _refresh_agent_knowledge():
 import time as _startup_time
 
 _APP_START_TIME = _startup_time.time()
+
+
+@app.post("/api/suggest-followups")
+async def suggest_followups(request: Request):
+    """LLM-powered follow-up suggestions based on conversation context."""
+    try:
+        body = await request.json()
+        question = body.get("question", "")
+        answer = body.get("answer", "")
+        if not question or not answer:
+            return {"suggestions": []}
+
+        api_key = getenv("OPENROUTER_API_KEY", "")
+        if not api_key:
+            return {"suggestions": []}
+
+        import httpx
+        prompt = f"""Based on this legal document conversation, suggest 3 natural follow-up questions the user might ask.
+
+Q: {question}
+A: {answer[:500]}
+
+Context: This is a legal document automation system for Myanmar corporate law. Users create AGMs, director consents, shareholder resolutions, etc.
+
+Return ONLY a JSON array of 3 short follow-up questions (no markdown, no explanation):
+["question 1", "question 2", "question 3"]"""
+
+        resp = httpx.post(
+            f"{OPENROUTER_BASE_URL}/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={"model": get_model("chat"), "messages": [{"role": "user", "content": prompt}], "max_tokens": 200, "temperature": 0.3},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+        suggestions = json.loads(content.strip().strip("`").strip())
+        return {"suggestions": suggestions[:3] if isinstance(suggestions, list) else []}
+    except Exception:
+        return {"suggestions": []}
 
 
 @app.get("/health")
@@ -489,8 +550,7 @@ from fastapi import Request, HTTPException
 PUBLIC_ROUTES = [
     "/api/auth/login",
     "/api/version",
-    "/api/templates/preview-pdf/",   # PDF preview in iframes (can't send auth headers). SECURITY NOTE: accessible without login. For public-facing deploy, implement signed URLs.
-    "/api/documents/preview-pdf/",   # Same as above
+    # PDF previews now require token query param — removed from public routes
     "/docs",
     "/openapi.json",
     "/redoc",
@@ -661,8 +721,8 @@ def log_activity(user_id: int, email: str, action: str, details: str = "", ip: s
         cur.execute("INSERT INTO activity_logs (user_id, user_email, action, details, ip_address) VALUES (%s, %s, %s, %s, %s)",
             (user_id, email, action, details, ip))
         conn.commit(); cur.close(); conn.close()
-    except Exception:
-        pass
+    except Exception as e:
+        logging.getLogger("legalscout").warning(f"Activity log failed: {e}")
 
 
 def generate_embedding(text: str) -> list[float] | None:
@@ -679,7 +739,7 @@ def generate_embedding(text: str) -> list[float] | None:
 
     try:
         res = httpx.post(
-            "https://openrouter.ai/api/v1/embeddings",
+            f"{OPENROUTER_BASE_URL}/embeddings",
             headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json"},
             json={"model": model, "input": text, "encoding_format": "float"},
             timeout=30,
@@ -799,8 +859,8 @@ def _init_admin():
 # Initialize admin on import
 try:
     _init_admin()
-except Exception:
-    pass
+except Exception as e:
+    logging.getLogger("legalscout").warning(f"Admin init failed: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -913,6 +973,8 @@ async def auth_login(request: Request):
         cur.close(); conn.close()
 
         if not row:
+            # Always hash-check to prevent timing attack (email enumeration)
+            bcrypt.checkpw(b"dummy", b"$2b$12$LJ3m4ys3Gn/0FWpfKMNbIeDjQJz2GnnKTjPVTqJjLYKmWFjGEQ3ya")
             return {"success": False, "error": "Invalid email or password"}
         if not row[5]:
             return {"success": False, "error": "Account is disabled"}
@@ -965,8 +1027,8 @@ async def admin_create_user(request: Request):
             return {"success": False, "error": "Email and password required"}
         if not validate_email(email):
             return {"success": False, "error": "Invalid email format"}
-        if len(password) < 6:
-            return {"success": False, "error": "Password must be at least 6 characters"}
+        if len(password) < 10:
+            return {"success": False, "error": "Password must be at least 10 characters"}
         if role not in ("user", "editor", "admin"):
             return {"success": False, "error": "Role must be user, editor, or admin"}
 
@@ -1066,7 +1128,11 @@ documents_dir = Path("/documents")
 @app.get("/documents/legal/{subdir}/{filename}")
 async def serve_document_with_s3_fallback(subdir: str, filename: str):
     """Serve document files — local first, S3 fallback if missing."""
-    local_path = documents_dir / "legal" / subdir / filename
+    from fastapi.responses import JSONResponse
+    base_dir = (documents_dir / "legal" / subdir).resolve()
+    local_path = (documents_dir / "legal" / subdir / filename).resolve()
+    if not str(local_path).startswith(str(base_dir)):
+        return JSONResponse(status_code=400, content={"error": "Invalid filename"})
     if local_path.exists():
         return FileResponse(local_path)
 
@@ -1076,7 +1142,6 @@ async def serve_document_with_s3_fallback(subdir: str, filename: str):
         if s3_download(s3_key, str(local_path)):
             return FileResponse(local_path)
 
-    from fastapi.responses import JSONResponse
     return JSONResponse(status_code=404, content={"error": "File not found"})
 
 
@@ -1142,6 +1207,10 @@ async def list_available_templates():
 @app.get("/api/dashboard/templates/{template_name}")
 async def get_template_info(template_name: str):
     """Get template details."""
+    base_dir = Path("/documents/legal/templates").resolve()
+    safe_path = (base_dir / template_name).resolve()
+    if not str(safe_path).startswith(str(base_dir)):
+        return {"error": "Invalid filename"}
     return analyze_template(template_name)
 
 
@@ -1177,13 +1246,26 @@ async def set_template_category(request: dict):
 
 
 @app.post("/api/templates/upload")
-async def upload_template(file: UploadFile = File(...)):
+async def upload_template(request: Request, file: UploadFile = File(...)):
     """Upload a new template."""
+    require_admin(request)
     templates_dir = Path("/documents/legal/templates")
     templates_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        content = await file.read()
+        # Read in chunks, abort if too large
+        MAX_SIZE = 50 * 1024 * 1024
+        chunks = []
+        size = 0
+        while True:
+            chunk = await file.read(8192)
+            if not chunk:
+                break
+            size += len(chunk)
+            if size > MAX_SIZE:
+                return JSONResponse(status_code=413, content={"error": f"File too large (max {MAX_SIZE // 1024 // 1024}MB)"})
+            chunks.append(chunk)
+        content = b"".join(chunks)
         filename = file.filename or "template.docx"
 
         if not filename.endswith(".docx"):
@@ -1212,8 +1294,9 @@ async def upload_template(file: UploadFile = File(...)):
 
 
 @app.post("/api/templates/analyze")
-async def analyze_template_endpoint(name: str = Form(...)):
+async def analyze_template_endpoint(request: Request, name: str = Form(...)):
     """Analyze a template and extract fields."""
+    require_admin(request)
     result = ai_analyze_template(name)
 
     if result.get("success"):
@@ -1223,8 +1306,9 @@ async def analyze_template_endpoint(name: str = Form(...)):
 
 
 @app.delete("/api/templates/delete")
-async def delete_template(name: str = None):
+async def delete_template(request: Request, name: str = None):
     """Delete a template file."""
+    require_admin(request)
     if not name:
         return {"success": False, "error": "Template name required"}
 
@@ -1293,11 +1377,15 @@ async def delete_template(name: str = None):
 
 
 @app.get("/api/templates/preview/{template_name}")
-async def preview_template(template_name: str):
+async def preview_template(request: Request, template_name: str):
     """Convert Word document to HTML for preview."""
+    get_current_user(request)
     from docx import Document
 
-    template_path = Path("/documents/legal/templates") / template_name
+    base_dir = Path("/documents/legal/templates").resolve()
+    template_path = (base_dir / template_name).resolve()
+    if not str(template_path).startswith(str(base_dir)):
+        return {"error": "Invalid filename"}
 
     if not template_path.exists():
         return {"error": "Template not found"}
@@ -1366,8 +1454,9 @@ knowledge_dir.mkdir(parents=True, exist_ok=True)
 
 
 @app.post("/api/knowledge/upload")
-async def upload_knowledge(file: UploadFile = File(...)):
+async def upload_knowledge(request: Request, file: UploadFile = File(...)):
     """Upload knowledge file (Excel, CSV, Word)."""
+    require_admin(request)
     try:
         filename = file.filename or "knowledge.xlsx"
         file_path = knowledge_dir / filename
@@ -1395,15 +1484,17 @@ async def upload_knowledge(file: UploadFile = File(...)):
 
 
 @app.get("/api/knowledge/sources")
-async def list_knowledge_sources():
+async def list_knowledge_sources(request: Request):
     """List all uploaded knowledge sources."""
+    require_admin(request)
     sources = get_knowledge_sources()
     return {"sources": sources}
 
 
 @app.post("/api/knowledge/sync/companies")
-async def sync_companies_to_knowledge():
+async def sync_companies_to_knowledge(request: Request):
     """Sync companies from DB to knowledge base."""
+    require_admin(request)
     try:
         from scout.tools.knowledge_base import store_cleaned_data, get_db_connection
         import os, json
@@ -1507,7 +1598,7 @@ Return JSON:
 Return ONLY JSON."""
 
                     ai_res = httpx.post(
-                        "https://openrouter.ai/api/v1/chat/completions",
+                        f"{OPENROUTER_BASE_URL}/chat/completions",
                         headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json"},
                         json={"model": get_model("training"), "messages": [{"role": "user", "content": ai_prompt}], "temperature": 0},
                         timeout=60,
@@ -1559,8 +1650,9 @@ Return ONLY JSON."""
 
 
 @app.get("/api/knowledge/train-companies-stream")
-async def train_companies_stream():
+async def train_companies_stream(request: Request):
     """Stream company training progress via SSE — real per-company analysis."""
+    require_admin(request)
     from starlette.responses import StreamingResponse
     import httpx, os
 
@@ -1569,6 +1661,7 @@ async def train_companies_stream():
         return f"data: {json.dumps(d)}\n\n"
 
     def generate():
+        conn = None
         try:
             yield _sse("start", "Starting company deep training...")
 
@@ -1583,7 +1676,7 @@ async def train_companies_stream():
                 FROM companies ORDER BY company_name_english
             """)
             rows = cur.fetchall()
-            cur.close(); conn.close()
+            cur.close(); conn.close(); conn = None
 
             if not rows:
                 yield _sse("error", "No companies in database")
@@ -1653,10 +1746,11 @@ Return JSON:
 Return ONLY JSON."""
 
                         ai_res = httpx.post(
-                            "https://openrouter.ai/api/v1/chat/completions",
+                            f"{OPENROUTER_BASE_URL}/chat/completions",
                             headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json"},
                             json={"model": training_model, "messages": [{"role": "user", "content": ai_prompt}], "temperature": 0},
                             timeout=60)
+                        ai_res.raise_for_status()
                         ai_text = ai_res.json()["choices"][0]["message"]["content"].strip()
                         if ai_text.startswith("```"):
                             ai_text = ai_text.split("```")[1]
@@ -1711,7 +1805,8 @@ Return ONLY JSON."""
                 _tc = get_db_conn(); _tc.autocommit = True; _tcc = _tc.cursor()
                 _tcc.execute("INSERT INTO training_status (training_type, last_trained, record_count) VALUES ('companies', NOW(), %s) ON CONFLICT (training_type) DO UPDATE SET last_trained = NOW(), record_count = %s", (total, total))
                 _tcc.close(); _tc.close()
-            except Exception: pass
+            except Exception as e:
+                logging.getLogger("legalscout").warning(f"Training status save failed: {e}")
 
             # Summary
             yield _sse("summary", f"Training complete: {total} companies, {analyzed} analyzed", total=total, analyzed=analyzed)
@@ -1719,6 +1814,10 @@ Return ONLY JSON."""
 
         except Exception as e:
             yield _sse("error", str(e))
+        finally:
+            if conn:
+                try: conn.close()
+                except: pass
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 
@@ -1800,8 +1899,9 @@ async def sync_templates_to_knowledge():
 
 
 @app.delete("/api/dashboard/document/{doc_id}")
-async def delete_document(doc_id: str):
+async def delete_document(request: Request, doc_id: str):
     """Delete a generated document by ID or filename."""
+    require_admin(request)
     try:
         import urllib.parse
 
@@ -1828,16 +1928,17 @@ async def delete_document(doc_id: str):
 
         # Delete file from disk
         deleted = False
+        output_base = Path("/documents/legal/output").resolve()
         if file_name:
-            file_path = Path(f"/documents/legal/output/{file_name}")
-            if file_path.exists():
+            file_path = (Path("/documents/legal/output") / file_name).resolve()
+            if str(file_path).startswith(str(output_base)) and file_path.exists():
                 file_path.unlink()
                 deleted = True
 
         # Fallback: try raw doc_id as filename
         if not deleted:
-            file_path = Path(f"/documents/legal/output/{doc_id_str}")
-            if file_path.exists():
+            file_path = (Path("/documents/legal/output") / doc_id_str).resolve()
+            if str(file_path).startswith(str(output_base)) and file_path.exists():
                 file_path.unlink()
                 deleted = True
 
@@ -1934,24 +2035,33 @@ async def sync_existing_documents():
 
 
 @app.get("/api/knowledge/train-stream/{template_name}")
-async def train_single_template_stream(template_name: str):
+async def train_single_template_stream(request: Request, template_name: str):
     """Train a single template with SSE streaming — sends each step as it happens."""
+    require_admin(request)
     import urllib.parse, subprocess, json as _sj
     from starlette.responses import StreamingResponse
     template_name = urllib.parse.unquote(template_name)
+
+    # Path traversal protection
+    _tmpl_base = Path("/documents/legal/templates").resolve()
+    _tmpl_safe = (_tmpl_base / template_name).resolve()
+    if not str(_tmpl_safe).startswith(str(_tmpl_base)):
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=400, content={"error": "Invalid filename"})
 
     def _sse(step: str, msg: str, **extra):
         data = {"step": step, "msg": msg, **extra}
         return f"data: {_sj.dumps(data)}\n\n"
 
     def generate():
+        conn = None
         try:
             from scout.tools.template_analyzer import analyze_template, classify_template_fields, get_db_connection
             from scout.tools.knowledge_base import get_db_connection as get_kb_conn
             from docx import Document
             import os
 
-            template_path = Path(f"/documents/legal/templates/{template_name}")
+            template_path = _tmpl_safe
             if not template_path.exists():
                 yield _sse("error", f"Template not found: {template_name}")
                 return
@@ -2023,7 +2133,7 @@ FULL TEMPLATE TEXT:
 Return ONLY a JSON object with: purpose, when_to_use, how_to_use (array), category, legal_references (array), legal_context, related_templates (array), workflow_sequence (before/after arrays), field_details (object), required_fields (array), optional_fields (array), static_text_warnings (array), prerequisites (array), filing_deadline, fees, common_mistakes (array), signatures_required (signers array), validity_period, regulatory_body (name), language_notes, summary_for_agent. Return ONLY JSON."""
 
                     ai_res = httpx.post(
-                        "https://openrouter.ai/api/v1/chat/completions",
+                        f"{OPENROUTER_BASE_URL}/chat/completions",
                         headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json"},
                         json={"model": training_model, "messages": [{"role": "user", "content": ai_prompt}], "temperature": 0},
                         timeout=60,
@@ -2076,7 +2186,7 @@ Return ONLY a JSON object with: purpose, when_to_use, how_to_use (array), catego
                       _sj.dumps(common_mistakes) if isinstance(common_mistakes, list) else common_mistakes,
                       "Myanmar", _get_complexity(template_name), _get_estimated_time(template_name),
                       template_name))
-                conn.commit(); cur.close(); conn.close()
+                conn.commit(); cur.close(); conn.close(); conn = None
             except Exception as e:
                 yield _sse("save_warn", f"Metadata save warning: {e}")
             yield _sse("metadata", f"Saved: {category}")
@@ -2137,7 +2247,7 @@ Return ONLY a JSON object where keys are placeholder names. Example:
 
                 import httpx as _mhx
                 _m_res = _mhx.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
+                    f"{OPENROUTER_BASE_URL}/chat/completions",
                     headers={"Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY','')}", "Content-Type": "application/json"},
                     json={"model": classification_model, "messages": [{"role": "user", "content": mapping_prompt}], "temperature": 0},
                     timeout=60,
@@ -2230,7 +2340,7 @@ Return ONLY a JSON object where keys are placeholder names. Example:
             # ── Deep Training Steps 9–15 ──────────────────────────
 
             _openrouter_key = getenv("OPENROUTER_API_KEY", "")
-            _training_model = get_model("training") if 'get_model' in dir() else "anthropic/claude-3.5-haiku"
+            _training_model = get_model("training") if 'get_model' in dir() else "google/gemini-3-flash-preview"
 
             # Step 9: Field-level deep analysis
             yield _sse("field_deep_start", "Analyzing each field in detail...")
@@ -2256,10 +2366,11 @@ For EACH placeholder, return a JSON object keyed by field name:
   }}
 }}
 Return ONLY the JSON object, no markdown."""
-                    _fd_res = _fd_httpx.post("https://openrouter.ai/api/v1/chat/completions",
+                    _fd_res = _fd_httpx.post(f"{OPENROUTER_BASE_URL}/chat/completions",
                         headers={"Authorization": f"Bearer {_openrouter_key}", "Content-Type": "application/json"},
                         json={"model": _training_model, "messages": [{"role": "user", "content": _fd_prompt}], "temperature": 0},
                         timeout=60)
+                    _fd_res.raise_for_status()
                     _fd_text = _fd_res.json().get("choices", [{}])[0].get("message", {}).get("content", "{}")
                     _fd_text = _fd_text.strip().strip("`").strip()
                     if _fd_text.startswith("json"):
@@ -2303,10 +2414,11 @@ Return JSON:
   "filing_obligations": ["File with DICA via MyCO portal"]
 }}
 Return ONLY the JSON object."""
-                    _lr_res = _lr_httpx.post("https://openrouter.ai/api/v1/chat/completions",
+                    _lr_res = _lr_httpx.post(f"{OPENROUTER_BASE_URL}/chat/completions",
                         headers={"Authorization": f"Bearer {_openrouter_key}", "Content-Type": "application/json"},
                         json={"model": _training_model, "messages": [{"role": "user", "content": _lr_prompt}], "temperature": 0},
                         timeout=60)
+                    _lr_res.raise_for_status()
                     _lr_text = _lr_res.json().get("choices", [{}])[0].get("message", {}).get("content", "{}")
                     _lr_text = _lr_text.strip().strip("`").strip()
                     if _lr_text.startswith("json"):
@@ -2339,10 +2451,11 @@ Return a JSON object mapping each placeholder to a realistic sample value.
 Use Myanmar company names, addresses, director names, dates in DD/MM/YYYY format.
 Example: {{"company_name": "City Holdings Limited", "meeting_date": "15/03/2026", "director_name": "U Aung Kyaw"}}
 Return ONLY the JSON object."""
-                    _sf_res = _sf_httpx.post("https://openrouter.ai/api/v1/chat/completions",
+                    _sf_res = _sf_httpx.post(f"{OPENROUTER_BASE_URL}/chat/completions",
                         headers={"Authorization": f"Bearer {_openrouter_key}", "Content-Type": "application/json"},
                         json={"model": _training_model, "messages": [{"role": "user", "content": _sf_prompt}], "temperature": 0.3},
                         timeout=60)
+                    _sf_res.raise_for_status()
                     _sf_text = _sf_res.json().get("choices", [{}])[0].get("message", {}).get("content", "{}")
                     _sf_text = _sf_text.strip().strip("`").strip()
                     if _sf_text.startswith("json"):
@@ -2377,10 +2490,11 @@ Return JSON:
   "notes": "Any important workflow notes"
 }}
 Return ONLY the JSON object."""
-                    _wf_res = _wf_httpx.post("https://openrouter.ai/api/v1/chat/completions",
+                    _wf_res = _wf_httpx.post(f"{OPENROUTER_BASE_URL}/chat/completions",
                         headers={"Authorization": f"Bearer {_openrouter_key}", "Content-Type": "application/json"},
                         json={"model": _training_model, "messages": [{"role": "user", "content": _wf_prompt}], "temperature": 0},
                         timeout=60)
+                    _wf_res.raise_for_status()
                     _wf_text = _wf_res.json().get("choices", [{}])[0].get("message", {}).get("content", "{}")
                     _wf_text = _wf_text.strip().strip("`").strip()
                     if _wf_text.startswith("json"):
@@ -2418,10 +2532,11 @@ Return a JSON array:
 ]
 Make questions practical — what users would actually ask. Include questions about requirements, deadlines, common issues.
 Return ONLY the JSON array."""
-                    _qa_res = _qa_httpx.post("https://openrouter.ai/api/v1/chat/completions",
+                    _qa_res = _qa_httpx.post(f"{OPENROUTER_BASE_URL}/chat/completions",
                         headers={"Authorization": f"Bearer {_openrouter_key}", "Content-Type": "application/json"},
                         json={"model": _training_model, "messages": [{"role": "user", "content": _qa_prompt}], "temperature": 0.3},
                         timeout=60)
+                    _qa_res.raise_for_status()
                     _qa_text = _qa_res.json().get("choices", [{}])[0].get("message", {}).get("content", "[]")
                     _qa_text = _qa_text.strip().strip("`").strip()
                     if _qa_text.startswith("json"):
@@ -2468,10 +2583,11 @@ Return a JSON array of relationships:
   {{"template": "Board_Resolution.docx", "relationship": "prerequisite|follow_up|related|alternative", "description": "Board resolution authorizing this action"}}
 ]
 Only include templates that have a real relationship. Return ONLY the JSON array."""
-                        _cr_res = _cr_httpx.post("https://openrouter.ai/api/v1/chat/completions",
+                        _cr_res = _cr_httpx.post(f"{OPENROUTER_BASE_URL}/chat/completions",
                             headers={"Authorization": f"Bearer {_openrouter_key}", "Content-Type": "application/json"},
                             json={"model": _training_model, "messages": [{"role": "user", "content": _cr_prompt}], "temperature": 0},
                             timeout=60)
+                        _cr_res.raise_for_status()
                         _cr_text = _cr_res.json().get("choices", [{}])[0].get("message", {}).get("content", "[]")
                         _cr_text = _cr_text.strip().strip("`").strip()
                         if _cr_text.startswith("json"):
@@ -2521,6 +2637,10 @@ Only include templates that have a real relationship. Return ONLY the JSON array
 
         except Exception as e:
             yield _sse("error", str(e))
+        finally:
+            if conn:
+                try: conn.close()
+                except: pass
 
     return StreamingResponse(generate(), media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
@@ -2528,8 +2648,9 @@ Only include templates that have a real relationship. Return ONLY the JSON array
 
 
 @app.post("/api/knowledge/deep-train")
-async def deep_train_templates():
+async def deep_train_templates(request: Request):
     """Deep AI training using Agent to analyze each document."""
+    require_admin(request)
     try:
         from scout.tools.knowledge_base import get_db_connection
         from scout.tools.template_analyzer import analyze_template
@@ -3217,7 +3338,7 @@ async def get_table_data(table_name: str, limit: int = 50):
         count = cur.fetchone()[0]
 
         # Then get the data
-        cur.execute(f"SELECT * FROM {table_name} LIMIT {limit}")
+        cur.execute(f"SELECT * FROM {table_name} LIMIT %s", (int(limit),))
         rows = cur.fetchall()
 
         columns = [desc[0] for desc in cur.description] if cur.description else []
@@ -3534,8 +3655,9 @@ async def dashboard_key_dates(request: Request):
 
 
 @app.get("/api/dashboard/export/excel")
-async def export_companies_excel():
+async def export_companies_excel(request: Request):
     """Export companies as Excel from database."""
+    require_admin(request)
     try:
         from fastapi.responses import StreamingResponse
         from openpyxl import Workbook
@@ -3543,7 +3665,7 @@ async def export_companies_excel():
         # Read companies from DB
         conn = get_db_conn()
         cur = conn.cursor()
-        cur.execute("SELECT company_name_english, company_registration_number, registered_office_address, company_type, status, directors, members, total_shares_issued, currency_of_share_capital, principal_activity FROM companies ORDER BY company_name_english")
+        cur.execute("SELECT company_name_english, company_registration_number, registered_office_address, company_type, status, directors, members, total_shares_issued, currency_of_share_capital, principal_activity FROM companies ORDER BY company_name_english LIMIT 10000")
         rows = cur.fetchall()
         cols = [desc[0] for desc in cur.description]
         companies = []
@@ -3833,8 +3955,9 @@ async def add_dashboard_company(request: Request):
 
 
 @app.delete("/api/dashboard/company/{company_name}")
-async def delete_dashboard_company(company_name: str):
+async def delete_dashboard_company(request: Request, company_name: str):
     """Delete a company by name from the companies DB table."""
+    require_admin(request)
     try:
         import urllib.parse
         import os
@@ -3881,8 +4004,9 @@ async def delete_dashboard_company(company_name: str):
 
 
 @app.get("/api/dashboard/company/{company_id}")
-async def get_company_by_id(company_id: int):
+async def get_company_by_id(request: Request, company_id: int):
     """Get full company data by ID for editing."""
+    get_current_user(request)
     try:
         import os
         from psycopg import connect
@@ -3910,8 +4034,9 @@ async def get_company_by_id(company_id: int):
 
 
 @app.put("/api/dashboard/company/{company_name}")
-async def update_dashboard_company(company_name: str, request: dict):
+async def update_dashboard_company(request: Request, company_name: str, body: dict):
     """Update a company in the DB by name (upsert via add_company)."""
+    require_admin(request)
     try:
         import urllib.parse
         from scout.tools.knowledge_base import add_company
@@ -3919,7 +4044,7 @@ async def update_dashboard_company(company_name: str, request: dict):
         company_name = urllib.parse.unquote(company_name)
 
         # add_company does UPSERT on company_registration_number
-        result = add_company(request)
+        result = add_company(body)
         if result.get("success"):
             return {"success": True, "message": f"Company updated"}
         return {"success": False, "error": result.get("error", "Update failed")}
@@ -4018,13 +4143,24 @@ async def upload_dashboard_template(request: Request, file: UploadFile = File(..
 # DOCX → PDF conversion for template preview
 # ---------------------------------------------------------------------------
 @app.get("/api/templates/preview-pdf/{template_name}")
-async def get_template_pdf(template_name: str):
+async def get_template_pdf(template_name: str, token: str = ""):
     """Serve pre-generated PDF preview. Falls back to on-the-fly conversion if needed."""
+    # Validate token
+    if not token:
+        return JSONResponse(status_code=401, content={"error": "Token required"})
+    try:
+        jwt.decode(token, getenv("JWT_SECRET_KEY", ""), algorithms=["HS256"])
+    except Exception:
+        return JSONResponse(status_code=401, content={"error": "Invalid token"})
+
     import urllib.parse
     import subprocess
 
     template_name = urllib.parse.unquote(template_name)
-    docx_path = Path(f"/documents/legal/templates/{template_name}")
+    base_dir = Path("/documents/legal/templates").resolve()
+    docx_path = (base_dir / template_name).resolve()
+    if not str(docx_path).startswith(str(base_dir)):
+        return {"error": "Invalid filename"}
 
     if not docx_path.exists():
         return {"error": "Template not found"}
@@ -4074,13 +4210,24 @@ async def get_template_pdf(template_name: str):
 
 
 @app.get("/api/documents/preview-pdf/{doc_name}")
-async def get_document_pdf(doc_name: str):
+async def get_document_pdf(doc_name: str, token: str = ""):
     """Convert a generated document (output) to PDF for preview."""
+    # Validate token
+    if not token:
+        return JSONResponse(status_code=401, content={"error": "Token required"})
+    try:
+        jwt.decode(token, getenv("JWT_SECRET_KEY", ""), algorithms=["HS256"])
+    except Exception:
+        return JSONResponse(status_code=401, content={"error": "Invalid token"})
+
     import urllib.parse
     import subprocess
 
     doc_name = urllib.parse.unquote(doc_name)
-    docx_path = Path(f"/documents/legal/output/{doc_name}")
+    output_base = Path("/documents/legal/output").resolve()
+    docx_path = (output_base / doc_name).resolve()
+    if not str(docx_path).startswith(str(output_base)):
+        return {"error": "Invalid filename"}
 
     if not docx_path.exists():
         return {"error": "Document not found"}
@@ -4191,7 +4338,7 @@ async def extract_company_from_pdf(file: UploadFile = File(...)):
 
         def call_llm(model: str, prompt: str) -> str:
             r = httpx.post(
-                "https://openrouter.ai/api/v1/chat/completions",
+                f"{OPENROUTER_BASE_URL}/chat/completions",
                 headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json"},
                 json={"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0},
                 timeout=60,
@@ -4256,7 +4403,7 @@ DOCUMENT:
 
 Return ONLY JSON, no markdown."""
 
-        ai_text = call_llm("anthropic/claude-3.5-haiku", extraction_prompt)
+        ai_text = call_llm(get_model("training"), extraction_prompt)
         extracted = json.loads(ai_text)
 
         # ── Step 2: GPT-4o-mini — only for Myanmar name if CID codes found ──
@@ -4274,7 +4421,7 @@ TEXT:
 
 Return ONLY the Myanmar name (Burmese script), nothing else."""
 
-                myanmar_text = call_llm("openai/gpt-4o-mini", myanmar_prompt).strip().strip('"')
+                myanmar_text = call_llm(get_model("classification"), myanmar_prompt).strip().strip('"')
                 if myanmar_text and myanmar_text != "null" and "(cid:" not in myanmar_text:
                     extracted["company_name_myanmar"] = myanmar_text
             except Exception:
@@ -4301,9 +4448,7 @@ async def reset_documents(request: Request):
     """Delete all generated documents."""
     user = require_admin(request)
     try:
-        from psycopg import connect
-        conn = connect(host=getenv("DB_HOST","localhost"), port=int(getenv("DB_PORT","5432")),
-                       dbname=getenv("DB_DATABASE","legalscout"), user=getenv("DB_USER","scout"), password=getenv("DB_PASS",""))
+        conn = get_db_conn()
         cur = conn.cursor()
         cur.execute("DELETE FROM documents")
         cur.execute("DELETE FROM document_versions")
@@ -4327,9 +4472,7 @@ async def reset_chat(request: Request):
     """Delete all chat sessions, AI memory, and learnings."""
     user = require_admin(request)
     try:
-        from psycopg import connect
-        conn = connect(host=getenv("DB_HOST","localhost"), port=int(getenv("DB_PORT","5432")),
-                       dbname=getenv("DB_DATABASE","legalscout"), user=getenv("DB_USER","scout"), password=getenv("DB_PASS",""))
+        conn = get_db_conn()
         cur = conn.cursor()
         for t in ["agno_sessions", "agno_memories", "agno_learnings",
                    "scout_knowledge", "scout_learnings", "scout_knowledge_contents"]:
@@ -4350,9 +4493,7 @@ async def reset_companies(request: Request):
     """Delete all companies and knowledge data."""
     user = require_admin(request)
     try:
-        from psycopg import connect
-        conn = connect(host=getenv("DB_HOST","localhost"), port=int(getenv("DB_PORT","5432")),
-                       dbname=getenv("DB_DATABASE","legalscout"), user=getenv("DB_USER","scout"), password=getenv("DB_PASS",""))
+        conn = get_db_conn()
         cur = conn.cursor()
         cur.execute("DELETE FROM knowledge_lookup")
         cur.execute("DELETE FROM knowledge_raw")
@@ -4414,7 +4555,7 @@ async def test_model(request: Request):
 
         if purpose == "embedding":
             res = httpx.post(
-                "https://openrouter.ai/api/v1/embeddings",
+                f"{OPENROUTER_BASE_URL}/embeddings",
                 headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json"},
                 json={"model": model, "input": "test embedding", "encoding_format": "float"},
                 timeout=15,
@@ -4426,7 +4567,7 @@ async def test_model(request: Request):
             return {"success": True, "message": f"Working — {dims} dimensions, {elapsed}ms", "time_ms": elapsed}
         else:
             res = httpx.post(
-                "https://openrouter.ai/api/v1/chat/completions",
+                f"{OPENROUTER_BASE_URL}/chat/completions",
                 headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json"},
                 json={"model": model, "messages": [{"role": "user", "content": "Say OK"}], "max_tokens": 20, "temperature": 0},
                 timeout=15,
@@ -4439,15 +4580,15 @@ async def test_model(request: Request):
 
         # Save test result to DB
         try:
-            from psycopg import connect as _tc
-            _tconn = _tc(host=getenv("DB_HOST","localhost"), port=5432, dbname=getenv("DB_DATABASE","ai"), user=getenv("DB_USER","ai"), password=getenv("DB_PASS","ai"))
+            _tconn = get_db_conn()
             _tcur = _tconn.cursor()
             _tcur.execute(
                 "INSERT INTO app_settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = %s, updated_at = CURRENT_TIMESTAMP",
                 (f"model_test_{purpose}", json.dumps({"model": model, "ok": result["success"], "msg": result.get("message", result.get("error","")), "time": datetime.now().isoformat()}),
                  json.dumps({"model": model, "ok": result["success"], "msg": result.get("message", result.get("error","")), "time": datetime.now().isoformat()})))
             _tconn.commit(); _tcur.close(); _tconn.close()
-        except Exception: pass
+        except Exception as e:
+            logging.getLogger("legalscout").warning(f"Model test log failed: {e}")
 
         return result
     except httpx.HTTPStatusError as e:
@@ -4617,7 +4758,7 @@ async def update_models(request: Request):
                 scout.model = _OAC(
                     id=new_model,
                     api_key=getenv("OPENROUTER_API_KEY"),
-                    base_url="https://openrouter.ai/api/v1",
+                    base_url=OPENROUTER_BASE_URL,
                 )
                 logger.info(f"Agent model reloaded: {new_model}")
         except Exception as e:
@@ -4758,9 +4899,7 @@ async def reset_templates(request: Request):
     """Delete all templates from DB and filesystem."""
     user = require_admin(request)
     try:
-        from psycopg import connect
-        conn = connect(host=getenv("DB_HOST","localhost"), port=int(getenv("DB_PORT","5432")),
-                       dbname=getenv("DB_DATABASE","legalscout"), user=getenv("DB_USER","scout"), password=getenv("DB_PASS",""))
+        conn = get_db_conn()
         cur = conn.cursor()
         cur.execute("DELETE FROM templates")
         cur.execute("DELETE FROM template_versions")
@@ -4784,9 +4923,7 @@ async def reset_all(request: Request):
     """Delete ALL data — companies, documents, knowledge. Templates are preserved."""
     user = require_admin(request)
     try:
-        from psycopg import connect
-        conn = connect(host=getenv("DB_HOST","localhost"), port=int(getenv("DB_PORT","5432")),
-                       dbname=getenv("DB_DATABASE","legalscout"), user=getenv("DB_USER","scout"), password=getenv("DB_PASS",""))
+        conn = get_db_conn()
         cur = conn.cursor()
         # App data
         cur.execute("DELETE FROM documents")
@@ -4821,13 +4958,10 @@ async def restore_backup(request: Request, file: UploadFile = File(...)):
     """Restore data from a JSON backup file."""
     user = require_admin(request)
     try:
-        from psycopg import connect
-
         content = await file.read()
         backup = json.loads(content)
 
-        conn = connect(host=getenv("DB_HOST","localhost"), port=int(getenv("DB_PORT","5432")),
-                       dbname=getenv("DB_DATABASE","legalscout"), user=getenv("DB_USER","scout"), password=getenv("DB_PASS",""))
+        conn = get_db_conn()
         cur = conn.cursor()
 
         restored = {}
@@ -4887,15 +5021,24 @@ async def restore_backup(request: Request, file: UploadFile = File(...)):
 
             restored[table_name] = count
 
-        # Restore agno tables (generic approach — insert all columns)
+        # Restore agno tables with column whitelist to prevent SQL injection
+        AGNO_SAFE_COLUMNS = {
+            "agno_sessions": {"session_id", "agent_id", "user_id", "memory", "agent_data", "session_data", "created_at", "updated_at"},
+            "agno_memories": {"id", "user_id", "memory", "topics", "created_at", "updated_at"},
+            "agno_learnings": {"id", "user_id", "learning", "topics", "created_at", "updated_at"},
+            "scout_learnings": {"id", "user_id", "learning", "topics", "created_at", "updated_at"},
+        }
+        _safe_col_re = _re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
         for table_name in agno_tables:
             rows = backup.get(table_name, [])
             if not rows:
                 continue
 
+            safe_cols_set = AGNO_SAFE_COLUMNS.get(table_name, set())
             count = 0
             for row in rows:
-                cols = [k for k in row.keys() if k != "id"]
+                cols = [k for k in row.keys() if k != "id" and k in safe_cols_set and _safe_col_re.match(k)]
                 if not cols:
                     continue
                 values = []
@@ -5434,15 +5577,26 @@ async def send_document_email(request: Request):
         if not to_email or not file_path:
             return {"success": False, "error": "to_email and file_path required"}
 
-        # Resolve file path
-        full_path = Path(file_path)
-        if not full_path.exists():
-            # Try with /documents prefix
-            full_path = Path(f"/documents/legal/output/{Path(file_path).name}")
+        # Resolve file path with traversal protection
+        output_base = Path("/documents/legal/output").resolve()
+        templates_base = Path("/documents/legal/templates").resolve()
+
+        full_path = Path(file_path).resolve()
+        # Ensure file is within allowed directories
+        if not (str(full_path).startswith(str(output_base)) or str(full_path).startswith(str(templates_base))):
+            # Try with /documents prefix using just the filename
+            fname = Path(file_path).name
+            full_path = (output_base / fname).resolve()
+            if not str(full_path).startswith(str(output_base)):
+                return {"success": False, "error": "Invalid filename"}
             if not full_path.exists():
-                full_path = Path(f"/documents/legal/templates/{Path(file_path).name}")
+                full_path = (templates_base / fname).resolve()
+                if not str(full_path).startswith(str(templates_base)):
+                    return {"success": False, "error": "Invalid filename"}
                 if not full_path.exists():
                     return {"success": False, "error": "File not found"}
+        elif not full_path.exists():
+            return {"success": False, "error": "File not found"}
 
         # Get SMTP settings
         import os, smtplib
@@ -5504,25 +5658,25 @@ async def send_document_email(request: Request):
 
         # Log to email_logs table
         try:
-            from psycopg import connect as _ec
-            _econn = _ec(host=getenv("DB_HOST","scout-db"), port=5432, dbname=getenv("DB_DATABASE","ai"), user=getenv("DB_USER","ai"), password=getenv("DB_PASS","ai"))
+            _econn = get_db_conn()
             _ecur = _econn.cursor()
             _ecur.execute(
                 "INSERT INTO email_logs (to_email, subject, body, attachment_name, attachment_path, sent_by_email, status) VALUES (%s,%s,%s,%s,%s,%s,%s)",
                 (to_email, subject, message, full_path.name, str(full_path), sender_email, "sent"))
             _econn.commit(); _ecur.close(); _econn.close()
-        except Exception: pass
+        except Exception as e:
+            logging.getLogger("legalscout").warning(f"Email log failed: {e}")
 
         return {"success": True, "message": f"Email sent to {to_email} with {full_path.name}"}
     except Exception as e:
         # Log failed email
         try:
-            from psycopg import connect as _ec2
-            _econn2 = _ec2(host=getenv("DB_HOST","scout-db"), port=5432, dbname=getenv("DB_DATABASE","ai"), user=getenv("DB_USER","ai"), password=getenv("DB_PASS","ai"))
+            _econn2 = get_db_conn()
             _ecur2 = _econn2.cursor()
             _ecur2.execute(
                 "INSERT INTO email_logs (to_email, subject, body, sent_by_email, status, error_message) VALUES (%s,%s,%s,%s,%s,%s)",
                 (to_email, subject, message, "unknown", "failed", str(e)))
             _econn2.commit(); _ecur2.close(); _econn2.close()
-        except Exception: pass
+        except Exception as e2:
+            logging.getLogger("legalscout").warning(f"Email error log failed: {e2}")
         return {"success": False, "error": str(e)}

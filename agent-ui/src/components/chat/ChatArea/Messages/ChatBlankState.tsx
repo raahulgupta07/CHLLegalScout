@@ -3,32 +3,23 @@
 import { motion } from 'framer-motion'
 import { useStore } from '@/store'
 import { useQueryState } from 'nuqs'
-import { FileText, Building, ScrollText, Search } from 'lucide-react'
 
 const QUICK_ACTIONS = [
   {
-    icon: <FileText className="w-5 h-5" />,
-    title: "Create AGM Minutes",
-    description: "Generate Annual General Meeting minutes for a company",
-    prompt: "Create AGM for City Holdings Limited",
+    title: 'Create AGM for City Holdings',
+    prompt: 'Create AGM for City Holdings Limited',
   },
   {
-    icon: <ScrollText className="w-5 h-5" />,
-    title: "Director Consent Form",
-    description: "Generate a director consent form for appointment",
-    prompt: "Create Director Consent Form",
+    title: 'Create Director Consent Form',
+    prompt: 'Create Director Consent Form',
   },
   {
-    icon: <Building className="w-5 h-5" />,
-    title: "List Companies",
-    description: "Show all companies in the database",
-    prompt: "List all companies",
+    title: 'List all companies',
+    prompt: 'List all companies',
   },
   {
-    icon: <Search className="w-5 h-5" />,
-    title: "Show Templates",
-    description: "Browse all available document templates",
-    prompt: "Show all templates",
+    title: 'Show all templates',
+    prompt: 'Show all templates',
   },
 ]
 
@@ -38,11 +29,9 @@ const ChatBlankState = () => {
   const [dbId, setDbId] = useQueryState('db_id')
 
   const handleQuickAction = (prompt: string) => {
-    // Ensure agent is selected before sending
     if (!agentId) {
       setAgentId('scout')
       setDbId('scout-db')
-      // Small delay to let URL params update
       setTimeout(() => setPendingMessage(prompt), 300)
     } else {
       setPendingMessage(prompt)
@@ -50,67 +39,43 @@ const ChatBlankState = () => {
   }
 
   return (
-    <section className="flex flex-col items-center text-center font-geist" aria-label="Welcome">
-      <div className="flex max-w-2xl flex-col items-center gap-y-8">
-        {/* Logo */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4 }}
-          className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shadow-lg"
-        >
-          <span className="text-white font-bold text-2xl">LS</span>
-        </motion.div>
-
-        {/* Title */}
+    <section className="flex flex-col items-center text-center font-brutalist" aria-label="Welcome">
+      <div className="flex max-w-2xl flex-col items-center gap-y-6">
+        {/* Title — clean like DASH */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.15 }}
+          transition={{ duration: 0.4 }}
           className="space-y-2"
         >
-          <h1 className="text-2xl font-bold text-primary tracking-tight">Legal Scout</h1>
-          <p className="text-sm text-muted">AI-powered legal document assistant for Myanmar corporate law</p>
+          <h1 className="text-[42px] font-black text-[#383832] tracking-[-0.02em] uppercase leading-tight">Legal Scout</h1>
+          <p className="text-xs font-bold text-[#383832]/40 uppercase tracking-[0.15em]">
+            AI-Powered Document Assistant — Myanmar Corporate Law
+          </p>
         </motion.div>
 
-        {/* Quick Actions Grid */}
+        {/* Quick Actions — simple bordered list like DASH */}
         <motion.div
-          initial={{ opacity: 0, y: 15 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          className="grid grid-cols-2 gap-3 w-full"
+          transition={{ duration: 0.4, delay: 0.15 }}
+          className="flex flex-col gap-2 w-full max-w-md"
         >
           {QUICK_ACTIONS.map((action, i) => (
             <motion.button
               key={i}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 5 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.35 + i * 0.08 }}
+              transition={{ duration: 0.25, delay: 0.2 + i * 0.05 }}
               onClick={() => handleQuickAction(action.prompt)}
-              className="flex flex-col items-start gap-2 p-4 rounded-xl border border-primary/10 bg-card hover:bg-accent/50 hover:border-primary/20 transition-all text-left group"
+              className="px-4 py-3 text-left text-sm font-medium text-[#383832]
+                         border border-[#383832]/20 hover:border-[#383832]/50 hover:bg-[#383832]/5
+                         transition-all duration-150 cursor-pointer"
             >
-              <div className="p-2 rounded-lg bg-accent group-hover:bg-brand/10 transition-colors">
-                <div className="text-muted group-hover:text-brand transition-colors">
-                  {action.icon}
-                </div>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-primary">{action.title}</p>
-                <p className="text-xs text-muted mt-0.5">{action.description}</p>
-              </div>
+              {action.title}
             </motion.button>
           ))}
         </motion.div>
-
-        {/* Hint */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.7 }}
-          className="text-xs text-muted/60"
-        >
-          Click a suggestion above or type your question below
-        </motion.p>
       </div>
     </section>
   )

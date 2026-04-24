@@ -101,7 +101,7 @@ export default function UsersPage() {
           body: JSON.stringify(body),
         })
         const data = await res.json()
-        if (!res.ok) { setError(data.detail || data.error || "Update failed"); return }
+        if (!res.ok || data.success === false) { setError(data.detail || data.error || "Update failed"); return }
       } else {
         const res = await authFetch(`${API_BASE}/users`, {
           method: "POST",
@@ -109,7 +109,7 @@ export default function UsersPage() {
           body: JSON.stringify(formData),
         })
         const data = await res.json()
-        if (!res.ok) { setError(data.detail || data.error || "Create failed"); return }
+        if (!res.ok || data.success === false) { setError(data.detail || data.error || "Create failed"); return }
       }
       setShowModal(false)
       fetchUsers()

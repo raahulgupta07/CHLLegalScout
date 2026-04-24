@@ -13,6 +13,7 @@ from agno.knowledge.embedder.openai import OpenAIEmbedder
 from agno.vectordb.pgvector import PgVector, SearchType
 
 from db.url import db_url
+from app.model_config import OPENROUTER_BASE_URL as _OPENROUTER_BASE_URL
 
 DB_ID = "scout-db"
 
@@ -50,7 +51,7 @@ def create_knowledge(name: str, table_name: str) -> Knowledge:
             embedder=OpenAIEmbedder(
                 id=getenv("EMBEDDING_MODEL", "openai/text-embedding-3-small"),
                 api_key=getenv("OPENROUTER_API_KEY") or getenv("OPENAI_API_KEY"),
-                base_url="https://openrouter.ai/api/v1",
+                base_url=_OPENROUTER_BASE_URL,
             ),
         ),
         contents_db=get_postgres_db(contents_table=f"{table_name}_contents"),

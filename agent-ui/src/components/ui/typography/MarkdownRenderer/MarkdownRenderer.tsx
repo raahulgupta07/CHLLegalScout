@@ -1,6 +1,5 @@
 import { type FC } from 'react'
 import ReactMarkdown from 'react-markdown'
-import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 
@@ -22,7 +21,7 @@ const MarkdownRenderer: FC<MarkdownRendererProps> = ({
     )}
     components={{ ...(inline ? inlineComponents : components) }}
     remarkPlugins={[remarkGfm]}
-    rehypePlugins={[rehypeRaw, rehypeSanitize]}
+    rehypePlugins={[rehypeSanitize]}
   >
     {children}
   </ReactMarkdown>

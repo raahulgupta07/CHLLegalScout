@@ -61,9 +61,10 @@ def analyze_excel_with_ai(file_path: str, filename: str) -> Dict[str, Any]:
         # Take first 50 rows to process
         batch = data_rows[:50]
 
+        from app.model_config import OPENROUTER_BASE_URL, get_model
         client = OpenAI(
             api_key=api_key,
-            base_url="https://openrouter.ai/api/v1",
+            base_url=OPENROUTER_BASE_URL,
             timeout=60.0,
         )
 
@@ -82,7 +83,7 @@ Rules:
 Return ONLY JSON array."""
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=get_model("chat"),
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
             max_tokens=8000,

@@ -6,7 +6,7 @@
 # ============================================================================
 
 # --- Stage 1: Build Frontend ---
-FROM node:18-alpine AS frontend-builder
+FROM node:22-alpine AS frontend-builder
 
 WORKDIR /frontend
 
@@ -38,11 +38,11 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app
 
 # ---------------------------------------------------------------------------
-# Install system dependencies
+# Install system dependencies + gosu for secure privilege drop
 # ---------------------------------------------------------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice-writer libreoffice-common fonts-noto-core fonts-noto-cjk \
-    curl tini \
+    curl tini gosu \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
@@ -58,8 +58,7 @@ RUN groupadd -g 61000 app \
 WORKDIR /app
 
 COPY requirements.txt ./
-RUN uv pip sync requirements.txt --system \
-    && uv pip install pdfplumber bcrypt --system \
+RUN uv pip install -r requirements.txt pdfplumber bcrypt --system \
     && rm -rf /root/.cache /tmp/*
 
 # ---------------------------------------------------------------------------
@@ -77,16 +76,15 @@ COPY --from=frontend-builder --chown=app:app /frontend/out /app/static-frontend
 # ---------------------------------------------------------------------------
 RUN mkdir -p /documents/legal/templates /documents/legal/data /documents/legal/output \
     /documents/legal/uploads /documents/legal/previews /documents/legal/knowledge \
+    /documents/legal/extracts \
     && chown -R app:app /documents
 
 # ---------------------------------------------------------------------------
-# Entrypoint
+# Entrypoint — starts as root to fix bind-mount permissions, then drops to app
 # ---------------------------------------------------------------------------
 RUN chmod +x /app/scripts/entrypoint.sh
-
-USER app
 
 EXPOSE 8000
 
 ENTRYPOINT ["tini", "--", "/app/scripts/entrypoint.sh"]
-CMD ["chill"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

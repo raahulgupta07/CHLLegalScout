@@ -54,7 +54,7 @@ def grade_response(
     response: str,
     expected_values: list[str],
     golden_path: str | None = None,
-    model: str = "gpt-5-mini",
+    model: str = "gpt-5.4-mini",
 ) -> GradeResult:
     """
     Use an LLM to grade the agent's response.
@@ -69,9 +69,10 @@ def grade_response(
     Returns:
         GradeResult with pass/fail, score, and reasoning
     """
+    from app.model_config import OPENROUTER_BASE_URL
     client = OpenAI(
         api_key=os.getenv("OPENROUTER_API_KEY"),
-        base_url="https://openrouter.ai/api/v1",
+        base_url=OPENROUTER_BASE_URL,
     )
 
     # Build the expected answer context

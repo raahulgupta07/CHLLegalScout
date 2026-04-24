@@ -7,6 +7,7 @@ Uses PostgreSQL database for storage.
 """
 
 import json
+import logging
 import os
 import re
 from datetime import datetime
@@ -111,14 +112,15 @@ def classify_template_fields(template_text: str, fields: List[str]) -> Dict[str,
         return _fallback_classification(fields)
 
     try:
+        from app.model_config import OPENROUTER_BASE_URL
         response = httpx.post(
-            "https://openrouter.ai/api/v1/chat/completions",
+            f"{OPENROUTER_BASE_URL}/chat/completions",
             headers={
                 "Authorization": f"Bearer {openrouter_key}",
                 "Content-Type": "application/json",
             },
             json={
-                "model": os.getenv("CLASSIFICATION_MODEL", "anthropic/claude-3.5-haiku"),
+                "model": os.getenv("CLASSIFICATION_MODEL", "google/gemini-3.1-flash-lite-preview"),
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0,
             },
@@ -214,6 +216,7 @@ def _get_template_text(template_path: Path) -> str:
 
 def save_template_to_db(name: str, path: str, fields: List[str], details: Dict, document_type: str = None) -> bool:
     """Save template to database with all fields."""
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -330,15 +333,18 @@ def save_template_to_db(name: str, path: str, fields: List[str], details: Dict, 
 
         conn.commit()
         cur.close()
-        conn.close()
         return True
     except Exception as e:
-        print(f"Error saving template to DB: {e}")
+        logging.getLogger("legalscout").warning(f"DB error in save_template_to_db: {e}")
         return False
+    finally:
+        if conn:
+            conn.close()
 
 
 def get_template_from_db(name: str) -> Optional[Dict]:
     """Get template from database."""
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -348,7 +354,6 @@ def get_template_from_db(name: str) -> Optional[Dict]:
         )
         row = cur.fetchone()
         cur.close()
-        conn.close()
 
         if row:
             return {
@@ -362,12 +367,16 @@ def get_template_from_db(name: str) -> Optional[Dict]:
             }
         return None
     except Exception as e:
-        print(f"Error getting template from DB: {e}")
+        logging.getLogger("legalscout").warning(f"DB error in get_template_from_db: {e}")
         return None
+    finally:
+        if conn:
+            conn.close()
 
 
 def get_all_templates_from_db() -> List[Dict]:
     """Get all templates from database."""
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -386,7 +395,6 @@ def get_all_templates_from_db() -> List[Dict]:
         """)
         rows = cur.fetchall()
         cur.close()
-        conn.close()
 
         return [
             {
@@ -430,8 +438,11 @@ def get_all_templates_from_db() -> List[Dict]:
             for row in rows
         ]
     except Exception as e:
-        print(f"Error getting templates from DB: {e}")
+        logging.getLogger("legalscout").warning(f"DB error in get_all_templates_from_db: {e}")
         return []
+    finally:
+        if conn:
+            conn.close()
 
 
 def analyze_template(template_name: str, documents_dir: str = "/documents") -> dict[str, Any]:

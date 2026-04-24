@@ -23,7 +23,9 @@ def get_connection():
     host = os.getenv("DB_HOST", "localhost")
     port = os.getenv("DB_PORT", "5432")
     user = os.getenv("DB_USER", "scout")
-    password = os.getenv("DB_PASS", "")
+    password = os.getenv("DB_PASS")
+    if not password:
+        raise ValueError("DB_PASS environment variable is required")
     database = os.getenv("DB_DATABASE", "legalscout")
     return psycopg.connect(f"host={host} port={port} dbname={database} user={user} password={password}")
 

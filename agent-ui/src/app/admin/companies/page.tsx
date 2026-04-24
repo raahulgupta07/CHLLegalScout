@@ -235,7 +235,7 @@ function SplitView({ pdfUrl, formData, onChange, onSave, onCancel, saving, extra
             )}
           </div>
           {pdfUrl ? (
-            <iframe src={`${process.env.NEXT_PUBLIC_API_URL || ''}${pdfUrl}`} className="flex-1 w-full bg-white" title="PDF" />
+            <iframe src={`${process.env.NEXT_PUBLIC_API_URL || ''}${pdfUrl}`} className="flex-1 w-full bg-white" title="PDF" sandbox="allow-same-origin" />
           ) : (
             <div className="flex-1 flex items-center justify-center text-muted text-sm">No PDF available</div>
           )}
@@ -313,7 +313,7 @@ function CreateChoiceScreen({ onUploadPdf, onManual, onCancel }: {
 }
 
 // ─── Main Page ──────────────────────────────────────────────────────
-type PageView = "list" | "choice" | "pdf" | "manual" | "edit"
+type PageView = "list" | "choice" | "pdf" | "manual" | "edit" | "view"
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<any[]>([])
@@ -335,6 +335,7 @@ export default function CompaniesPage() {
   const [trainingLogs, setTrainingLogs] = useState<{ time: string; msg: string; type: string }[]>([])
 
   const pdfInputRef = useRef<HTMLInputElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
   useEffect(() => { fetchCompanies() }, [])
 
   // Save company training logs when training completes
@@ -344,18 +345,20 @@ export default function CompaniesPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "companies", logs: trainingLogs })
-      }).catch(() => {})
+      }).catch((e) => { console.error("Save training logs error:", e) })
     }
   }, [trainingComplete])
 
   const fetchCompanies = async () => {
     try {
       const res = await authFetch(apiClient.getDashboardData())
+      if (!res.ok) throw new Error(`Request failed: ${res.status}`)
       const data = await res.json()
       setCompanies(data.companies || [])
       // Fetch training status + persisted logs
       try {
         const tRes = await authFetch(apiClient.getTrainingStatus())
+        if (!tRes.ok) throw new Error(`Request failed: ${tRes.status}`)
         const tData = await tRes.json()
         if (tData.success && tData.data?.companies) {
           if (tData.data.companies.last_trained) {
@@ -366,8 +369,8 @@ export default function CompaniesPage() {
             setTrainingComplete(true)
           }
         }
-      } catch {}
-    } catch (e) { console.error(e) } finally { setLoading(false) }
+      } catch (e) { console.error("Training status error:", e) }
+    } catch (e) { console.error("Companies load error:", e) } finally { setLoading(false) }
   }
 
   const resetState = () => {
@@ -392,10 +395,11 @@ export default function CompaniesPage() {
     const fd = new FormData(); fd.append("file", file)
     try {
       const res = await authFetch(apiClient.uploadCompanyPdf(), { method: "POST", body: fd })
+      if (!res.ok) throw new Error(`Request failed: ${res.status}`)
       const data = await res.json()
       if (data.success) { setPdfUrl(data.pdf_url); setPdfReady(true) }
       else toast.error(data.error || "Upload failed")
-    } catch { toast.error("Failed to upload PDF") }
+    } catch (e) { console.error("PDF upload error:", e); toast.error("Failed to upload PDF") }
 
     if (pdfInputRef.current) pdfInputRef.current.value = ""
   }
@@ -410,6 +414,7 @@ export default function CompaniesPage() {
     const fd = new FormData(); fd.append("file", pdfFile)
     try {
       const res = await authFetch(apiClient.extractCompanyPdf(), { method: "POST", body: fd })
+      if (!res.ok) throw new Error(`Request failed: ${res.status}`)
       const data = await res.json()
       if (data.success && data.data) {
         const d = data.data
@@ -419,7 +424,7 @@ export default function CompaniesPage() {
         if (data.pdf_url) setPdfUrl(data.pdf_url)
         toast.success(`Extracted: ${d.company_name_english || "Company"}`)
       } else toast.error(data.error || "Extraction failed")
-    } catch { toast.error("Failed to extract") }
+    } catch (e) { console.error("Extract error:", e); toast.error("Failed to extract") }
     finally { setExtracting(false) }
   }
 
@@ -429,16 +434,17 @@ export default function CompaniesPage() {
     if (company.id) {
       try {
         const res = await authFetch(apiClient.getCompany(company.id))
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`)
         const data = await res.json()
         if (data.success && data.data) {
           const c = data.data
           c.directors = c.directors || []; c.members = c.members || []; c.filing_history = c.filing_history || []
           setFormData(c)
           setPdfUrl(c.pdf_url || null)
-          setView("view" as any)
+          setView("view")
           return
         }
-      } catch {}
+      } catch (e) { console.error("View company error:", e) }
     }
     // Fallback
     setFormData({
@@ -452,7 +458,7 @@ export default function CompaniesPage() {
       })),
       members: [], filing_history: [],
     })
-    setView("view" as any)
+    setView("view")
   }
 
   // ── Edit existing company ──
@@ -461,6 +467,7 @@ export default function CompaniesPage() {
     if (company.id) {
       try {
         const res = await authFetch(apiClient.getCompany(company.id))
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`)
         const data = await res.json()
         if (data.success && data.data) {
           const c = data.data
@@ -470,7 +477,7 @@ export default function CompaniesPage() {
           setView("edit")
           return
         }
-      } catch {}
+      } catch (e) { console.error("Edit company error:", e) }
     }
     // Fallback
     setFormData({
@@ -496,6 +503,7 @@ export default function CompaniesPage() {
       const res = await authFetch(apiClient.addCompany(), {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
       })
+      if (!res.ok) throw new Error(`Request failed: ${res.status}`)
       const data = await res.json()
       if (data.success) {
         toast.success(`"${formData.company_name_english}" saved`)
@@ -503,7 +511,7 @@ export default function CompaniesPage() {
         setView("list")
         resetState()
       } else toast.error(data.error || "Save failed")
-    } catch { toast.error("Failed to save") } finally { setSaving(false) }
+    } catch (e) { console.error("Save error:", e); toast.error("Failed to save") } finally { setSaving(false) }
   }
 
   const handleBack = () => { setView("list"); resetState() }
@@ -512,10 +520,11 @@ export default function CompaniesPage() {
     if (!confirm(`Delete "${name}"?`)) return
     try {
       const res = await authFetch(apiClient.deleteCompany(name), { method: "DELETE" })
+      if (!res.ok) throw new Error(`Request failed: ${res.status}`)
       const data = await res.json()
       if (data.success) { toast.success("Deleted"); await fetchCompanies() }
       else toast.error(data.error || "Failed")
-    } catch { toast.error("Failed to delete") }
+    } catch (e) { console.error("Delete error:", e); toast.error("Failed to delete") }
   }
 
   const addLog = (msg: string, type: string = "info") => {
@@ -526,19 +535,35 @@ export default function CompaniesPage() {
   const delay = (ms: number) => new Promise(r => setTimeout(r, ms))
 
   const handleTrainAgent = async () => {
+    const token = localStorage.getItem("ls_token")
+    if (!token) {
+      toast.error("Please log in again")
+      return
+    }
+
     setIsTraining(true)
     setTrainingComplete(false)
     setTrainingLogs([])
     setShowTrainingLog(true)
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
 
     addLog("━".repeat(55), "info")
     addLog("🧠 COMPANY DEEP TRAINING", "info")
     addLog("━".repeat(55), "info")
 
     try {
-      const token = localStorage.getItem('ls_token') || ''
-      const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {}
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/knowledge/train-companies-stream`, { headers })
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/knowledge/train-companies-stream`, {
+        headers: { "Authorization": `Bearer ${token}` },
+        signal: controller.signal,
+      })
+
+      if (!res.ok) {
+        addLog(`✗ Training failed: ${res.status}`, "error")
+        toast.error(`Training failed: ${res.status}`)
+        return
+      }
 
       const reader = res.body?.getReader()
       if (!reader) { addLog("✗ Stream failed", "error"); return }
@@ -595,13 +620,14 @@ export default function CompaniesPage() {
             }
             else if (s === "error") addLog(`✗ ${m}`, "error")
             else addLog(`  ${m}`, "info")
-          } catch {}
+          } catch (e) { console.error("SSE parse error:", e) }
         }
       }
     } catch (e) {
       addLog("✗ Connection failed", "error")
       toast.error("Failed to train agent")
     } finally {
+      abortControllerRef.current = null
       setIsTraining(false)
     }
   }
@@ -642,7 +668,7 @@ export default function CompaniesPage() {
   )
 
   // ── View / Edit (split view with PDF if available, otherwise full form) ──
-  if (view === "edit" || view === "view" as any) return (
+  if (view === "edit" || view === "view") return (
     <>{hiddenPdfInput}
     {pdfUrl ? (
       <SplitView pdfUrl={pdfUrl} formData={formData} onChange={setFormData}
@@ -653,10 +679,10 @@ export default function CompaniesPage() {
         <div className="flex items-center justify-between p-4 border-b border-primary/10 bg-card">
           <div className="flex items-center gap-3">
             <button onClick={handleBack} className="p-1.5 rounded-lg hover:bg-accent text-muted hover:text-primary"><ArrowLeft className="w-4 h-4" /></button>
-            <h1 className="text-lg font-semibold text-primary">{(view as string) === "view" ? "Company Details" : "Edit Company"}</h1>
+            <h1 className="text-lg font-semibold text-primary">{view === "view" ? "Company Details" : "Edit Company"}</h1>
             {formData.company_name_english && <span className="text-xs text-brand bg-brand/10 px-2 py-0.5 rounded-full">{formData.company_name_english}</span>}
           </div>
-          {(view as string) === "view" && (
+          {view === "view" && (
             <button onClick={() => setView("edit")} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary text-white rounded-lg hover:bg-primary/80">
               <Pencil className="w-3.5 h-3.5" /> Edit
             </button>

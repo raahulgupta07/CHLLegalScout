@@ -30,8 +30,8 @@ const DocumentCard: FC<DocumentCardProps> = ({ url, fileName }) => {
   return (
     <div className="my-3 max-w-2xl">
       {/* Card */}
-      <div className="inline-flex w-full items-center gap-3 rounded-xl border border-gray-300 bg-gray-50 p-4 shadow-sm">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-red-600">
+      <div className="inline-flex w-full items-center gap-3 border-[2px] border-[#383832] bg-[#feffd6] p-4 stamp-shadow">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center bg-[#383832]">
           <FileText className="h-6 w-6 text-white" />
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -52,7 +52,7 @@ const DocumentCard: FC<DocumentCardProps> = ({ url, fileName }) => {
           </button>
         )}
         <a href={url} download
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-r from-orange-500 to-red-600 text-white hover:from-orange-600 hover:to-red-700 transition-all shadow-md hover:shadow-lg"
+          className="flex h-10 w-10 shrink-0 items-center justify-center bg-[#007518] text-white hover:bg-[#005c13] transition-all ink-border stamp-press"
           title="Download document">
           <Download className="h-5 w-5" />
         </a>
@@ -77,6 +77,7 @@ const DocumentCard: FC<DocumentCardProps> = ({ url, fileName }) => {
             style={{ height: '700px' }}
             title="Document Preview"
             onLoad={() => setPdfLoading(false)}
+            sandbox="allow-same-origin"
           />
         </div>
       )}

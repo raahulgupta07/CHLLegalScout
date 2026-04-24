@@ -37,7 +37,7 @@ ALTER TABLE templates ADD COLUMN IF NOT EXISTS tips JSONB;
 UPDATE templates SET ai_analyzed = COALESCE(ai_trained, FALSE) WHERE ai_analyzed IS NULL OR ai_analyzed = FALSE;
 
 -- Set default jurisdiction to Malaysia
-UPDATE templates SET jurisdiction = 'Malaysia' WHERE jurisdiction IS NULL;
+UPDATE templates SET jurisdiction = 'Myanmar' WHERE jurisdiction IS NULL;
 
 -- Set default complexity based on field count
 UPDATE templates SET complexity = 

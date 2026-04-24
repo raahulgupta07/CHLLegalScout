@@ -12,7 +12,6 @@ import {
   MessageCircle,
   ChevronLeft,
   ChevronRight,
-  ArrowLeft,
   Mail,
   Shield,
   LogOut,
@@ -53,10 +52,8 @@ export default function DashboardSidebar() {
   }, [])
 
   useEffect(() => {
-    // Set active based on current path
     const currentPath = pathname || '/admin/dashboard'
-
-    const path = currentPath.replace(/\/$/, '') // strip trailing slash
+    const path = currentPath.replace(/\/$/, '')
     if (path === '/admin/dashboard') setActiveTab('dashboard')
     else if (path === '/admin/documents') setActiveTab('documents')
     else if (path.startsWith('/admin/emails')) setActiveTab('emails')
@@ -73,30 +70,31 @@ export default function DashboardSidebar() {
   }
 
   return (
-    <div className={`flex flex-col h-full bg-card border-r border-primary/10 ${collapsed ? 'w-20' : 'w-64'} transition-all duration-300`}>
-      {/* Header - Logo */}
-      <div className="flex items-center justify-between p-4 border-b border-primary/10">
+    <div className={`brutalist flex flex-col h-full bg-[#feffd6] border-r-[3px] border-[#383832] ${collapsed ? 'w-20' : 'w-64'} transition-all duration-300 font-brutalist`}>
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b-[3px] border-[#383832]">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shrink-0">
-            <span className="text-white font-bold text-sm">LS</span>
+          <div className="w-8 h-8 bg-[#383832] flex items-center justify-center shrink-0">
+            <span className="text-[#feffd6] font-black text-sm">LS</span>
           </div>
           {!collapsed && (
-            <span className="text-sm font-semibold text-primary">Legal Scout</span>
+            <span className="text-sm font-black text-[#383832] uppercase tracking-wider">Legal Scout</span>
           )}
         </div>
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="p-1.5 rounded-lg hover:bg-accent text-muted hover:text-primary transition-colors"
+          className="p-1.5 hover:bg-[#383832]/10 text-[#383832] transition-colors"
         >
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>
       </div>
 
       {/* Back to Chat */}
-      <div className="p-3 border-b border-primary/10">
+      <div className="p-3 border-b-[2px] border-[#383832]">
         <Link
           href="/"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium bg-gradient-to-r from-orange-500 to-red-600 text-white hover:from-orange-600 hover:to-red-700 transition-all shadow-lg"
+          className="flex items-center gap-3 px-3 py-2.5 text-sm font-black bg-[#007518] text-white uppercase tracking-wider
+                     hover:bg-[#005c13] transition-all ink-border stamp-press"
         >
           <MessageCircle className="w-5 h-5" />
           {!collapsed && <span>Legal Scout</span>}
@@ -106,24 +104,24 @@ export default function DashboardSidebar() {
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {!collapsed && (
-          <div className="px-3 py-2 text-xs font-semibold text-muted uppercase tracking-wider">
-            Dashboard
+          <div className="px-3 py-2">
+            <span className="tag-label">Dashboard</span>
           </div>
         )}
         {navItems.filter(item => {
           if (item.name === 'Users' || item.name === 'Settings') return userRole === 'admin'
           if (['Templates', 'Companies', 'Knowledge'].includes(item.name)) return userRole !== 'user'
-          return true  // Dashboard, Documents visible to all
+          return true
         }).map((item) => {
           const isItemActive = isActive(item.href)
           return (
             <button
               key={item.name}
               onClick={() => router.push(item.href)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all w-full ${
+              className={`flex items-center gap-3 px-3 py-2.5 text-sm font-bold transition-all w-full uppercase tracking-wider cursor-pointer ${
                 isItemActive
-                  ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg'
-                  : 'text-muted hover:text-primary hover:bg-accent'
+                  ? 'bg-[#383832] text-[#feffd6] ink-border stamp-shadow'
+                  : 'text-[#383832] hover:bg-[#383832]/10'
               }`}
             >
               {item.icon}
@@ -134,30 +132,28 @@ export default function DashboardSidebar() {
       </nav>
 
       {/* Profile + Logout */}
-      <div className="p-3 border-t border-primary/10">
+      <div className="p-3 border-t-[3px] border-[#383832]">
         {!collapsed && (() => {
           let userName = "User"
-          let userEmail = ""
           try {
             const raw = localStorage.getItem("ls_user")
-            if (raw) { const u = JSON.parse(raw); userName = u.name || u.email?.split("@")[0] || "User"; userEmail = u.email || "" }
+            if (raw) { const u = JSON.parse(raw); userName = u.name || u.email?.split("@")[0] || "User" }
           } catch {}
-          const badge = userRole === "admin" ? "bg-red-500/10 text-red-700" : userRole === "editor" ? "bg-blue-500/10 text-blue-700" : "bg-gray-100 text-gray-600"
           return (
             <div className="flex items-center gap-2.5 px-3 py-2 mb-2">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shrink-0">
-                <span className="text-white text-xs font-bold">{userName[0]?.toUpperCase()}</span>
+              <div className="w-8 h-8 bg-[#383832] flex items-center justify-center shrink-0">
+                <span className="text-[#feffd6] text-xs font-black">{userName[0]?.toUpperCase()}</span>
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-primary truncate">{userName}</p>
-                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full uppercase ${badge}`}>{userRole}</span>
+                <p className="text-sm font-bold text-[#383832] truncate">{userName}</p>
+                <span className="tag-label">{userRole}</span>
               </div>
             </div>
           )
         })()}
         <button
           onClick={() => { localStorage.removeItem("ls_token"); localStorage.removeItem("ls_user"); window.location.href = "/login" }}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-500/10 w-full transition-colors"
+          className="flex items-center gap-3 px-3 py-2.5 text-sm font-black text-[#be2d06] uppercase tracking-wider hover:bg-[#be2d06]/10 w-full transition-colors cursor-pointer"
         >
           <LogOut className="w-5 h-5" />
           {!collapsed && <span>Logout</span>}

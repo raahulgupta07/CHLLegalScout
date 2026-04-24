@@ -7,17 +7,21 @@ Falls back to defaults if not configured.
 
 Usage:
     from app.model_config import get_model
-    model = get_model("chat")  # → "gpt-5.4-mini"
+    model = get_model("chat")  # → "openai/gpt-5.4-mini"
 """
 
 import os
 import json
+import logging
+
+# Centralized OpenRouter base URL — configurable via env var
+OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
 # Defaults — used when DB has no config
 DEFAULTS = {
     "chat": "openai/gpt-5.4-mini",
-    "training": "anthropic/claude-3.5-haiku",
-    "classification": "anthropic/claude-3.5-haiku",
+    "training": "google/gemini-3-flash-preview",
+    "classification": "google/gemini-3.1-flash-lite-preview",
     "embedding": "openai/text-embedding-3-small",
 }
 
@@ -27,24 +31,21 @@ _cache = {}
 def _load_from_db():
     """Load model config from app_settings table."""
     global _cache
+    conn = None
     try:
-        from psycopg import connect
-        conn = connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            port=int(os.getenv("DB_PORT", "5432")),
-            dbname=os.getenv("DB_DATABASE", "legalscout"),
-            user=os.getenv("DB_USER", "scout"),
-            password=os.getenv("DB_PASS", ""),
-        )
+        from db.connection import get_db_conn
+        conn = get_db_conn()
         cur = conn.cursor()
         cur.execute("SELECT value FROM app_settings WHERE key = 'ai_models'")
         row = cur.fetchone()
         cur.close()
-        conn.close()
         if row and row[0]:
             _cache = json.loads(row[0]) if isinstance(row[0], str) else row[0]
-    except Exception:
-        pass
+    except Exception as e:
+        logging.getLogger("legalscout").warning(f"DB error: {e}")
+    finally:
+        if conn:
+            conn.close()
 
 
 def get_model(purpose: str) -> str:
@@ -67,15 +68,10 @@ def get_all_models() -> dict:
 def save_models(config: dict):
     """Save model config to app_settings table."""
     global _cache
+    conn = None
     try:
-        from psycopg import connect
-        conn = connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            port=int(os.getenv("DB_PORT", "5432")),
-            dbname=os.getenv("DB_DATABASE", "legalscout"),
-            user=os.getenv("DB_USER", "scout"),
-            password=os.getenv("DB_PASS", ""),
-        )
+        from db.connection import get_db_conn
+        conn = get_db_conn()
         cur = conn.cursor()
         value = json.dumps(config)
         cur.execute(
@@ -85,7 +81,6 @@ def save_models(config: dict):
         )
         conn.commit()
         cur.close()
-        conn.close()
         _cache.update(config)
         # Also set env vars for modules that can't import model_config
         if "classification" in config:
@@ -93,7 +88,11 @@ def save_models(config: dict):
         if "embedding" in config:
             os.environ["EMBEDDING_MODEL"] = config["embedding"]
     except Exception as e:
+        logging.getLogger("legalscout").warning(f"DB error: {e}")
         raise e
+    finally:
+        if conn:
+            conn.close()
 
 
 _tz_cache = {"value": None, "expires": 0}
@@ -106,41 +105,45 @@ def get_timezone() -> str:
     if _tz_cache["value"] and now < _tz_cache["expires"]:
         return _tz_cache["value"]
 
+    conn = None
     try:
         from db.connection import get_db_conn
         conn = get_db_conn()
         cur = conn.cursor()
         cur.execute("SELECT value FROM app_settings WHERE key = 'timezone'")
         row = cur.fetchone()
-        cur.close(); conn.close()
+        cur.close()
         if row and row[0]:
             _tz_cache["value"] = row[0]
             _tz_cache["expires"] = now + 60
             return row[0]
-    except Exception:
-        pass
+    except Exception as e:
+        logging.getLogger("legalscout").warning(f"DB error: {e}")
+    finally:
+        if conn:
+            conn.close()
     return _tz_cache["value"] or "Asia/Yangon"
 
 
 def save_timezone(tz: str):
     """Save timezone to app_settings."""
+    conn = None
     try:
-        from psycopg import connect
-        conn = connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            port=int(os.getenv("DB_PORT", "5432")),
-            dbname=os.getenv("DB_DATABASE", "legalscout"),
-            user=os.getenv("DB_USER", "scout"),
-            password=os.getenv("DB_PASS", ""),
-        )
+        from db.connection import get_db_conn
+        conn = get_db_conn()
         cur = conn.cursor()
         cur.execute(
             "INSERT INTO app_settings (key, value) VALUES ('timezone', %s) "
             "ON CONFLICT (key) DO UPDATE SET value = %s, updated_at = CURRENT_TIMESTAMP",
             (tz, tz))
-        conn.commit(); cur.close(); conn.close()
+        conn.commit()
+        cur.close()
     except Exception as e:
+        logging.getLogger("legalscout").warning(f"DB error: {e}")
         raise e
+    finally:
+        if conn:
+            conn.close()
 
 
 def get_current_datetime() -> str:

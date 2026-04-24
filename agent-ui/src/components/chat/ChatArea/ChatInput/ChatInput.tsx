@@ -46,14 +46,14 @@ const ChatInput = () => {
   }
 
   return (
-    <div className="relative mx-auto flex w-full max-w-full items-center gap-2 px-4 pb-4 md:max-w-3xl lg:max-w-5xl">
-      {/* Email Button — sends message to agent to trigger email flow */}
+    <div className="brutalist relative mx-auto flex w-full max-w-full items-center gap-3 px-4 pb-4 md:max-w-3xl lg:max-w-5xl">
+      {/* Email Button */}
       <Button
         onClick={() => {
           setPendingMessage("I want to send an email with a document attachment")
         }}
         size="icon"
-        className="rounded-xl p-5 shrink-0 bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700"
+        className="p-5 shrink-0 bg-[#383832] text-[#feffd6] hover:bg-[#2a2a25] ink-border stamp-press cursor-pointer"
         title="Send Email"
         disabled={!(selectedAgent || teamId) || isStreaming}
       >
@@ -61,8 +61,9 @@ const ChatInput = () => {
       </Button>
 
       <TextArea
-        placeholder="Ask anything"
+        placeholder="ENTER COMMAND..."
         value={inputMessage}
+        maxLength={5000}
         onChange={(e) => setInputMessage(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.nativeEvent.isComposing && !e.shiftKey && !isStreaming) {
@@ -70,12 +71,15 @@ const ChatInput = () => {
             handleSubmit()
           }
         }}
-        className="w-full border border-gray-300 bg-white px-4 text-sm text-primary focus:border-gray-400 focus:ring-1 focus:ring-gray-200"
+        className="w-full bg-[#feffd6] px-4 text-sm text-[#383832] font-brutalist
+                   border-[2px] border-[#383832] border-r-[3px] border-b-[3px]
+                   focus:border-[#00fc40] focus:ring-1 focus:ring-[#00fc40] placeholder:text-[#383832]/30
+                   placeholder:uppercase placeholder:tracking-widest placeholder:text-xs placeholder:font-bold"
         disabled={!(selectedAgent || teamId)}
         ref={chatInputRef}
       />
       {isStreaming ? (
-        <Button onClick={handleCancel} size="icon" className="rounded-xl bg-red-500 p-5 text-white hover:bg-red-600">
+        <Button onClick={handleCancel} size="icon" className="bg-[#be2d06] p-5 text-white hover:bg-[#a02505] ink-border stamp-press cursor-pointer">
           <Icon type="x" color="white" />
         </Button>
       ) : (
@@ -83,9 +87,9 @@ const ChatInput = () => {
           onClick={handleSubmit}
           disabled={!(selectedAgent || teamId) || !inputMessage.trim() || isStreaming}
           size="icon"
-          className="rounded-xl bg-primary p-5 text-primaryAccent"
+          className="bg-[#00fc40] p-5 text-[#383832] hover:bg-[#00e639] border-[2px] border-[#383832] cursor-pointer hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-[3px_3px_0px_0px_#383832] active:translate-x-0 active:translate-y-0 active:shadow-none transition-all"
         >
-          <Icon type="send" color="primaryAccent" />
+          <Icon type="send" color="secondary" />
         </Button>
       )}
     </div>

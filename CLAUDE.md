@@ -45,13 +45,13 @@ Port 80 (configurable via PORT in .env)
 ### Tech Stack
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 15, React 18, TypeScript, Tailwind, Zustand, Radix UI |
+| Frontend | Next.js 15, React 18, TypeScript, Tailwind, Zustand, Radix UI, Space Grotesk font |
 | Backend | FastAPI, Agno 2.5, python-docx, psycopg, SQLAlchemy |
-| AI | Configurable via Settings: GPT-5.4 Mini (chat), Claude 3.5 Haiku (training), text-embedding-3-small — all via OpenRouter |
+| AI | Configurable via Settings: GPT-5.4 Mini (chat), Gemini 3 Flash (training), Gemini 3.1 Flash Lite (classification), text-embedding-3-small — all via OpenRouter (base URL configurable via `OPENROUTER_BASE_URL` env var) |
 | Database | PostgreSQL 18 + pgvector |
-| Auth | JWT + bcrypt |
+| Auth | JWT + bcrypt (timing-attack-safe login) |
 | Storage | Local filesystem + optional S3 (AWS, MinIO, R2, B2) |
-| Deploy | Docker Compose, single-port, production-only |
+| Deploy | Docker Compose, single-port, Node 22, gosu for privilege drop, production-only |
 
 ---
 
@@ -65,9 +65,10 @@ ADMIN_EMAIL=...           # Required — admin login
 ADMIN_PASSWORD=...        # Required — 10+ chars
 JWT_SECRET_KEY=...        # Required — openssl rand -hex 32
 DB_USER=scout             # Database user
-DB_PASS=...               # Required — openssl rand -base64 24
+DB_PASS=...               # Required — raises ValueError if unset (openssl rand -base64 24)
 DB_DATABASE=legalscout    # Database name
 PORT=80                   # Change if port 80 is taken
+EXA_API_KEY=...           # Optional — only loaded when set, never embedded in URLs
 ```
 
 **Configured from Admin UI (not .env):**
@@ -84,34 +85,46 @@ PORT=80                   # Change if port 80 is taken
 | File | Purpose |
 |------|---------|
 | `app/main.py` | FastAPI app, 50+ endpoints, auth, admin, training |
-| `scout/agent.py` | AI agent definition, 27+ tools, system prompt |
-| `scout/tools/smart_doc.py` | Document generation, placeholder fill |
+| `scout/agent.py` | AI agent definition, 27+ tools, system prompt, prompt injection sanitizer |
+| `scout/tools/smart_doc.py` | Document generation, placeholder fill (thread-safe, no globals) |
 | `scout/tools/clarification.py` | Template/company matching |
 | `scout/tools/companies_db.py` | Company DB queries |
 | `scout/tools/knowledge_base.py` | Knowledge storage/search |
 | `scout/tools/template_analyzer.py` | Template analysis, field classification |
 | `app/s3_storage.py` | Optional S3 cloud storage |
 | `app/model_config.py` | AI model configuration (DB-backed) |
+| `app/connection.py` | DB connection (DB_PASS validated) |
+| `app/url.py` | DB URL builder (DB_PASS validated) |
 | `db/init.sql` | Database schema |
-| `db/migration_*.sql` | Database migrations |
+| `db/migration_001_template_fields.sql` | Template field additions |
+| `db/migration_002_hardening.sql` | Security hardening |
+| `db/migration_003_activity_tracking.sql` | Activity tracking |
+| `db/migration_004_email_logs.sql` | Email logging |
+| `db/migration_005_financial_year.sql` | Financial year support |
+| `db/migration_006_field_mapping.sql` | Field mapping |
+| `db/migration_007_deep_training.sql` | Deep training support |
+| `db/migration_008_fix_user_role_constraint.sql` | User role constraint (adds 'editor') |
 
 ### Frontend
 | File | Purpose |
 |------|---------|
-| `agent-ui/src/app/page.tsx` | Chat interface |
+| `agent-ui/src/app/page.tsx` | Chat interface (input capped at 5000 chars) |
+| `agent-ui/src/app/login/page.tsx` | Brutalist login page (Space Grotesk, warm yellow, ink borders) |
 | `agent-ui/src/app/admin/templates/page.tsx` | Template upload, training, preview |
 | `agent-ui/src/app/admin/companies/page.tsx` | Company management (PDF/manual) |
 | `agent-ui/src/app/admin/dashboard/page.tsx` | Dashboard KPIs |
 | `agent-ui/src/app/admin/documents/page.tsx` | Generated documents |
 | `agent-ui/src/lib/api-client.ts` | API endpoint URLs |
 | `agent-ui/src/store.ts` | Zustand state |
+| `agent-ui/src/app/globals.css` | Global styles + brutalist utilities (.ink-border, .stamp-shadow, .tag-label, .stamp-press) |
+| `agent-ui/src/app/layout.tsx` | Root layout (Space Grotesk font) |
 
 ### Config
 | File | Purpose |
 |------|---------|
 | `compose.yaml` | Docker Compose (2 containers) |
-| `Dockerfile` | Multi-stage build (Node + Python) |
-| `scripts/entrypoint.sh` | Container startup (DB wait + migrations) |
+| `Dockerfile` | Multi-stage build (Node 22 + Python), gosu privilege drop |
+| `scripts/entrypoint.sh` | Container startup: fix permissions as root, drop to app user, DB wait + migrations |
 | `.env.example` | Environment template |
 | `DEPLOY.md` | Deployment guide |
 
@@ -167,7 +180,7 @@ User: "Create AGM for City Holdings"
 | `knowledge_vec` | Semantic search (pgvector embeddings) |
 | `knowledge_raw` | Raw KB data |
 | `knowledge_sources` | Synced KB file tracking |
-| `users` | Authentication (email, hashed password, role) |
+| `users` | Authentication (email, hashed password, role: admin/user/editor) |
 | `activity_logs` | Audit trail |
 | `training_status` | AI training state |
 | `app_settings` | Runtime configuration (models, S3, SMTP) |
@@ -178,15 +191,50 @@ User: "Create AGM for City Holdings"
 
 ## Security
 
+### Authentication & Authorization
 - JWT authentication with bcrypt password hashing
+- Login timing-attack protection (dummy bcrypt check when user not found)
+- Minimum password length: 10 characters
 - Strong secrets enforced on startup (blocks weak JWT/admin password)
-- CORS: same-origin default (no wildcard)
-- File upload path traversal protection
-- SQL injection protection (whitelisted table names)
+- Auth required on all endpoints: 15 previously unprotected endpoints now require JWT (template upload/delete, training, export, company CRUD)
+- Preview PDF endpoints require JWT token query param
+- User role constraint: admin, user, editor
+
+### Input Validation & Injection Protection
+- SQL injection: parameterized queries throughout (including LIMIT clauses)
+- SQL injection in restore endpoint: column whitelist per table + regex validation
+- Prompt injection sanitizer in agent system prompt (`_sanitize_for_prompt` strips instruction-override patterns)
+- Chat input capped at 5000 characters (frontend)
+- `custom_data` protected fields cannot be overridden (company_name, directors, etc.)
+- Export queries have LIMIT 10000
+
+### XSS & Frontend Security
+- `rehypeRaw` removed from MarkdownRenderer (prevents XSS from AI output)
+- `sandbox="allow-same-origin"` on all iframes (5 files)
+- `res.ok` checks on all fetch calls across all pages
+- Empty catch blocks replaced with logged errors
+
+### File & Path Security
+- Path traversal protection on 8 file-serving endpoints (`.resolve()` + `startswith` check)
+- File upload streams in chunks (no large memory spikes)
+
+### Network & Infrastructure
+- CORS: same-origin default, wildcard explicitly rejected
 - Security headers (HSTS, X-Frame-Options, etc.)
-- Activity audit logging
+- Non-root Docker user (gosu privilege drop in entrypoint)
+- SSE generators wrapped in try-finally for connection cleanup
+- AbortController added to frontend SSE streams (templates + companies)
 - Log rotation (10MB x 3 files per container)
-- Non-root Docker user
+- Grafana default password strengthened
+
+### Resource & Connection Management
+- 30+ DB connection leaks fixed with try-finally across all backend files
+- 40+ bare `except: pass` replaced with logged exceptions
+- 7 AI API calls now have `raise_for_status()` before `.json()`
+- EXA API key only loaded when set, never embedded in URL when empty
+- DB_PASS raises ValueError if not set (connection.py, url.py, migrate.py)
+- Document tracker: `fetchone()` None-safe, double-fetchall fixed
+- Activity audit logging
 
 ---
 
@@ -196,18 +244,63 @@ User: "Create AGM for City Holdings"
 POST /api/auth/login                          # JWT login
 GET  /api/dashboard/data                      # Companies, templates, documents
 GET  /api/dashboard/stats                     # KPIs
-POST /api/dashboard/upload/template           # Upload .docx
-POST /api/dashboard/add/company               # Add company
-DELETE /api/dashboard/company/{name}          # Delete company
-DELETE /api/dashboard/document/{id}           # Delete document
-GET  /api/knowledge/train-stream/{template}   # SSE training stream (15 steps)
-GET  /api/knowledge/train-companies-stream    # SSE company training stream
-POST /api/knowledge/deep-train                # Batch train all templates
-GET  /api/templates/preview-pdf/{name}        # PDF preview (highlighted placeholders)
+POST /api/dashboard/upload/template           # Upload .docx (auth required)
+POST /api/dashboard/add/company               # Add company (auth required)
+DELETE /api/dashboard/company/{name}          # Delete company (auth required)
+DELETE /api/dashboard/document/{id}           # Delete document (auth required)
+GET  /api/knowledge/train-stream/{template}   # SSE training stream (15 steps, auth required)
+GET  /api/knowledge/train-companies-stream    # SSE company training stream (auth required)
+POST /api/knowledge/deep-train                # Batch train all templates (auth required)
+GET  /api/templates/preview-pdf/{name}        # PDF preview (JWT token query param)
 POST /api/company/extract-pdf                 # AI extract from DICA PDF
 POST /agents/scout/runs                       # AI chat (streaming)
+POST /api/suggest-followups                    # LLM-powered follow-up suggestions
 GET  /health                                  # Health check
 ```
+
+---
+
+## Design System
+
+**DASH-inspired brutalist aesthetic** — industrial/command-center feel across all pages. Inspired by City-Dash.
+
+### Colors
+| Token | Value | Usage |
+|-------|-------|-------|
+| Surface (page bg) | `#feffd6` | Chat area, admin pages |
+| Surface bright | `#fffff0` | Answer boxes, cards |
+| On-surface (text) | `#383832` | Primary text, borders |
+| Primary (green) | `#007518` | Active states, borders |
+| Primary neon | `#00fc40` | CLI prompts, send button, NEW CHAT button |
+| Error | `#be2d06` | Destructive actions, cancel |
+| Warning | `#ff9d00` | Traffic light dot |
+| Terminal dark | `#262622` | CLI blocks, user bubbles |
+
+### Typography
+- **Font:** Space Grotesk (loaded in layout.tsx), weight 900 for headers
+- **Pattern:** Uppercase, letter-spacing 0.05-0.15em, font-black
+
+### CSS Utilities (globals.css)
+- `.ink-border` — Asymmetric 2px/3px letterpress border
+- `.stamp-shadow` — Hard 4px offset shadow
+- `.tag-label` — Dark tag with yellow text (form labels)
+- `.stamp-press` — Button press translate effect
+- `.brutalist` — Zero border-radius override
+- `@keyframes cursorBlink` — CLI green block cursor
+- `@keyframes cliBlink` — Traffic light dots animation
+
+### Chat UI (DASH-inspired)
+- **User messages:** Right-aligned, dark bubble `#262622`, letterpress border (4px right/bottom)
+- **Agent messages:** CLI terminal block (dark) + white answer box below with stamp shadow
+- **CLI block:** Always visible — `$ scout exec --agent legal` → `> ✓ tool_name` → `$ done · N steps`
+- **Streaming animation:** Green cursor `█` blink + traffic light dots `■■■` (green/orange/red)
+- **Answer box loading:** Doc icon + traffic light dots, "STREAMING" label until complete
+- **COPY button:** Under every answer, copies to clipboard
+- **Trace toggle:** `$ trace ▼` collapsible showing tool calls + duration
+- **Auto-suggestions:** LLM-powered via `POST /api/suggest-followups` (instant keyword fallback + async AI)
+- **Session tag:** `LEGAL SCOUT · 02:08 PM` centered at top of chat
+- **Status bar:** `SYSTEM_ACTIVE | POWERED BY AI AGENT | LEGAL SCOUT · MYANMAR`
+- **Timestamps:** `02:08 PM · READ` (user) / `02:08 PM · AGENT` (agent) — 12hr AM/PM format
 
 ---
 
@@ -244,8 +337,11 @@ docker compose down -v && docker compose up -d --build
 | `/documents/legal/output/` | Generated documents | Yes |
 | `/documents/legal/uploads/` | DICA PDF uploads | Yes |
 | `/documents/legal/previews/` | PDF previews (cached) | No |
+| `/documents/legal/extracts/` | DICA PDF extracts | No |
+| `/documents/legal/knowledge/` | Knowledge base files | No |
 
 S3 is optional — configure from Admin → Settings. Local filesystem is default.
+All directories are auto-created at startup (defense-in-depth beyond Docker).
 
 ---
 
@@ -260,3 +356,10 @@ S3 is optional — configure from Admin → Settings. Local filesystem is defaul
 | Companies not showing | Add via `/admin/companies` |
 | Agent gives generic answers | Click "Train Agent" + "Start Training" |
 | Download links broken | Restart: `docker compose restart scout-api` |
+| DB_PASS ValueError on startup | Set `DB_PASS` in `.env` — no longer optional |
+
+---
+
+## Stability Hardening (Applied)
+
+All database connections use centralized `get_db_conn()` from `db/connection.py` — no more inline `psycopg.connect()` with hardcoded credentials. OpenRouter base URL centralized via `OPENROUTER_BASE_URL` in `app/model_config.py`. All silent `except: pass` blocks replaced with logged warnings. Chat input limited to 50KB on backend. All document directories auto-created at startup. All AI model references use `get_model()` — no hardcoded model names in any endpoint. Training/classification switched from Claude 3.5 Haiku to Gemini 3 Flash / 3.1 Flash Lite (70-94% cheaper).

@@ -62,6 +62,7 @@ export default function TemplatesPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const logIdRef = useRef(0)
   const trainingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     fetchTemplates()
@@ -81,13 +82,14 @@ export default function TemplatesPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "templates", logs: terminalLogs })
-      }).catch(() => {})
+      }).catch((e) => { console.error("Save training logs error:", e) })
     }
   }, [trainingComplete])
 
   const checkTrainingStatus = async () => {
     try {
       const res = await authFetch(apiClient.getTrainingStatus())
+      if (!res.ok) throw new Error(`Request failed: ${res.status}`)
       const data = await res.json()
       if (data.success && data.data?.templates) {
         if (data.data.templates.last_trained) {
@@ -106,7 +108,7 @@ export default function TemplatesPage() {
           }
         }
       }
-    } catch (e) {}
+    } catch (e) { console.error("Training status check error:", e) }
   }
 
   const addLog = (text: string, type: TerminalLine['type'] = 'info') => {
@@ -119,6 +121,7 @@ export default function TemplatesPage() {
     try {
       setError(null)
       const res = await authFetch(apiClient.getDashboardTemplates())
+      if (!res.ok) throw new Error(`Request failed: ${res.status}`)
       const data = await res.json()
       setTemplates(data.templates || [])
     } catch (error) {
@@ -146,10 +149,20 @@ export default function TemplatesPage() {
       return startTraining(true)
     }
 
+    const token = localStorage.getItem("ls_token")
+    if (!token) {
+      const { toast } = await import("sonner")
+      toast.error("Please log in again")
+      return
+    }
+
     setIsTraining(true)
     setTrainingComplete(false)
     setTerminalLogs([])
     setShowLogModal(true)
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
 
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || ''
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
@@ -170,13 +183,19 @@ export default function TemplatesPage() {
 
         try {
           // SSE streaming — each step appears live
-          const token = localStorage.getItem("ls_token") || ""
           const res = await fetch(`${API_BASE}/api/knowledge/train-stream/${encodeURIComponent(t.name)}`, {
             headers: { "Authorization": `Bearer ${token}` },
+            signal: controller.signal,
           })
 
-          if (!res.ok || !res.body) {
-            addLog(`  ✗ API error: ${res.status}`, 'error')
+          if (!res.ok) {
+            addLog(`  ✗ Training failed: ${res.status}`, 'error')
+            addLog(`╚══ ❌ Failed`, 'error')
+            continue
+          }
+
+          if (!res.body) {
+            addLog(`  ✗ No response body`, 'error')
             addLog(`╚══ ❌ Failed`, 'error')
             continue
           }
@@ -287,7 +306,7 @@ export default function TemplatesPage() {
                 else if (s === "done") templateDone = true
                 else if (s === "error") addLog(`  ✗ ${m}`, 'error')
                 else addLog(`  ${m}`, 'info')
-              } catch {}
+              } catch (e) { console.error("SSE parse error:", e) }
             }
           }
 
@@ -307,8 +326,9 @@ export default function TemplatesPage() {
       addLog("", 'info')
       addLog("Refreshing agent knowledge...", 'processing')
       try {
-        await authFetch(`${API_BASE}/api/knowledge/deep-train`, { method: "POST" })
-      } catch {}
+        const dtRes = await authFetch(`${API_BASE}/api/knowledge/deep-train`, { method: "POST" })
+        if (!dtRes.ok) throw new Error(`Deep train failed: ${dtRes.status}`)
+      } catch (e) { console.error("Deep train error:", e) }
       addLog("✓ Agent knowledge updated", 'success')
 
       // Summary
@@ -341,11 +361,16 @@ export default function TemplatesPage() {
       addLog("", 'error')
       addLog("✗ ERROR: Training failed", 'error')
     } finally {
+      abortControllerRef.current = null
       setIsTraining(false)
     }
   }
 
   const stopTraining = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
     setIsTraining(false)
     addLog("", 'error')
     addLog("⚠️ TRAINING STOPPED BY USER", 'error')
@@ -355,6 +380,7 @@ export default function TemplatesPage() {
     if (!showDeleteModal) return
     try {
       const res = await authFetch(apiClient.deleteTemplate(showDeleteModal.name), { method: "DELETE" })
+      if (!res.ok) throw new Error(`Request failed: ${res.status}`)
       const data = await res.json()
       if (data.training_invalidated) {
         setTrainingStale(true)
@@ -379,6 +405,7 @@ export default function TemplatesPage() {
         const formData = new FormData()
         formData.append("file", file)
         const res = await authFetch(apiClient.uploadTemplate(), { method: "POST", body: formData })
+        if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
         const data = await res.json()
         if (!data.success) {
           if (data.exists) {
@@ -613,6 +640,7 @@ export default function TemplatesPage() {
                     src={apiClient.previewTemplatePdf(selectedTemplate.name)}
                     className="flex-1 w-full border-0"
                     title="Template Preview"
+                    sandbox="allow-same-origin"
                   />
                 </div>
 
@@ -1103,13 +1131,14 @@ export default function TemplatesPage() {
                   try {
                     const API_BASE = process.env.NEXT_PUBLIC_API_URL || ''
                     const res = await authFetch(`${API_BASE}/api/admin/reset/templates`, { method: "POST" })
+                    if (!res.ok) throw new Error(`Request failed: ${res.status}`)
                     const data = await res.json()
                     if (data.success) {
                       await fetchTemplates()
                       setShowDeleteAllModal(false)
                       setDeleteAllConfirm("")
                     }
-                  } catch {} finally { setDeletingAll(false) }
+                  } catch (e) { console.error("Delete all error:", e) } finally { setDeletingAll(false) }
                 }}
                 disabled={deleteAllConfirm !== "DELETE ALL" || deletingAll}
                 className="flex-1 px-4 py-2 text-xs font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"

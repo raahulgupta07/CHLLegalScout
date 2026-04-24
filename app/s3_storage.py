@@ -23,46 +23,44 @@ S3_CONFIG_KEY = "s3_config"
 
 def _get_s3_config() -> dict:
     """Load S3 config from app_settings DB."""
+    conn = None
     try:
-        from psycopg import connect
-        conn = connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            port=int(os.getenv("DB_PORT", "5432")),
-            dbname=os.getenv("DB_DATABASE", "legalscout"),
-            user=os.getenv("DB_USER", "scout"),
-            password=os.getenv("DB_PASS", ""),
-        )
+        from db.connection import get_db_conn
+        conn = get_db_conn()
         cur = conn.cursor()
         cur.execute("SELECT value FROM app_settings WHERE key = %s", (S3_CONFIG_KEY,))
         row = cur.fetchone()
-        cur.close(); conn.close()
+        cur.close()
         if row and row[0]:
             return json.loads(row[0]) if isinstance(row[0], str) else row[0]
-    except Exception:
-        pass
+    except Exception as e:
+        logging.getLogger("legalscout").warning(f"DB error: {e}")
+    finally:
+        if conn:
+            conn.close()
     return {}
 
 
 def save_s3_config(config: dict):
     """Save S3 config to app_settings DB."""
+    conn = None
     try:
-        from psycopg import connect
-        conn = connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            port=int(os.getenv("DB_PORT", "5432")),
-            dbname=os.getenv("DB_DATABASE", "legalscout"),
-            user=os.getenv("DB_USER", "scout"),
-            password=os.getenv("DB_PASS", ""),
-        )
+        from db.connection import get_db_conn
+        conn = get_db_conn()
         cur = conn.cursor()
         value = json.dumps(config)
         cur.execute(
             "INSERT INTO app_settings (key, value) VALUES (%s, %s) "
             "ON CONFLICT (key) DO UPDATE SET value = %s, updated_at = CURRENT_TIMESTAMP",
             (S3_CONFIG_KEY, value, value))
-        conn.commit(); cur.close(); conn.close()
+        conn.commit()
+        cur.close()
     except Exception as e:
+        logging.getLogger("legalscout").warning(f"DB error: {e}")
         raise e
+    finally:
+        if conn:
+            conn.close()
 
 
 def is_s3_enabled() -> bool:

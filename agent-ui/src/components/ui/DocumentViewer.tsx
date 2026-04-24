@@ -93,6 +93,7 @@ export function DocumentCard({
                 src={previewUrl}
                 className="w-full h-full border-0"
                 title={`Preview: ${fileName}`}
+                sandbox="allow-same-origin"
               />
             </div>
           </div>

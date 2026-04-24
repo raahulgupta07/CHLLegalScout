@@ -289,8 +289,8 @@ function InlineEmailComposer({ defaultTo, defaultAttachment, onSent }: { default
   }
 
   return (
-    <div className="mt-3 max-w-lg border border-gray-300 rounded-xl overflow-hidden bg-white shadow-sm">
-      <div className="flex items-center justify-between px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600">
+    <div className="mt-3 max-w-lg border-[2px] border-[#383832] overflow-hidden bg-[#feffd6] stamp-shadow">
+      <div className="flex items-center justify-between px-4 py-2 bg-[#383832]">
         <div className="flex items-center gap-2 text-white">
           <Mail className="w-4 h-4" />
           <span className="text-xs font-semibold">Email</span>
@@ -334,12 +334,14 @@ function OptionButtons({ options, onSelect }: { options: Option[], onSelect: (ke
   if (options.length === 0) return null
 
   return (
-    <div className="mt-4 flex flex-wrap gap-2 max-w-2xl">
+    <div className="mt-4 flex flex-wrap gap-2 max-w-2xl font-brutalist">
       {options.map((option) => (
         <button
           key={option.key}
           onClick={() => onSelect(option.label)}
-          className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-4 py-2 text-[13px] text-gray-700 transition-all duration-150 hover:border-gray-400 hover:bg-gray-50 hover:text-primary hover:shadow-sm active:scale-[0.98]"
+          className="inline-flex items-center gap-1.5 border-[2px] border-[#383832] border-r-[3px] border-b-[3px] bg-[#fffff0] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.05em] text-[#383832]
+                     hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-[3px_3px_0px_0px_#383832]
+                     active:translate-x-0 active:translate-y-0 active:shadow-none transition-all cursor-pointer"
         >
           {option.label}
         </button>
@@ -416,11 +418,7 @@ const AgentMessage = ({ message }: MessageProps) => {
     )
   } else if (message.response_audio) {
     if (!message.response_audio.transcript) {
-      messageContent = (
-        <div className="mt-2 flex items-start">
-          <AgentThinkingLoader />
-        </div>
-      )
+      return null
     } else {
       messageContent = (
         <div className="flex w-full flex-col gap-4">
@@ -434,18 +432,13 @@ const AgentMessage = ({ message }: MessageProps) => {
       )
     }
   } else {
-    messageContent = (
-      <div className="mt-2">
-        <AgentThinkingLoader />
-      </div>
-    )
+    // No content yet — return null so the answer box is hidden
+    // (the CLI block in AgentMessageWrapper already shows the loading state)
+    return null
   }
 
   return (
-    <div className="flex flex-row items-start gap-4 font-geist">
-      <div className="flex-shrink-0">
-        <Icon type="agent" size="sm" />
-      </div>
+    <div className="font-brutalist text-[#383832]">
       {messageContent}
     </div>
   )
@@ -453,12 +446,16 @@ const AgentMessage = ({ message }: MessageProps) => {
 
 const UserMessage = memo(({ message }: MessageProps) => {
   return (
-    <div className="flex items-start gap-4 pt-6 text-start max-md:break-words">
-      <div className="flex-shrink-0">
-        <Icon type="user" size="sm" />
+    <div className="flex items-start justify-end gap-3 pt-4 font-brutalist max-md:break-words">
+      <div className="bg-[#262622] text-[#feffd6] px-5 py-3 max-w-[80%] border-[2px] border-[#383832] border-r-[4px] border-b-[4px]">
+        <p className="text-sm leading-relaxed">{message.content}</p>
       </div>
-      <div className="text-lg leading-7 rounded-lg font-geist text-primary">
-        {message.content}
+      <div className="flex-shrink-0 mt-1">
+        <div className="w-6 h-6 bg-[#262622] border border-[#e8e8d8]/20 flex items-center justify-center">
+          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+        </div>
       </div>
     </div>
   )

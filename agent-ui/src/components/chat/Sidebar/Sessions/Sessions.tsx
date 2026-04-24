@@ -135,9 +135,9 @@ const Sessions = () => {
   return (
     <div className="w-full">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">Recent chats</span>
+        <span className="text-[10px] font-black uppercase tracking-[0.15em] text-[#383832]/60 font-brutalist">Chat History</span>
         {sessionsData && sessionsData.length > 0 && (
-          <span className="text-[11px] text-muted/60">{sessionsData.length}</span>
+          <span className="text-[10px] font-bold text-[#383832]/40 font-brutalist">{sessionsData.length}</span>
         )}
       </div>
       <div

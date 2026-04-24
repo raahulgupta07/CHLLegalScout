@@ -54,7 +54,6 @@ services:
       context: .
       dockerfile: Dockerfile
     image: ${IMAGE_NAME:-scout}:${IMAGE_TAG:-latest}
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
     restart: unless-stopped
     logging:
       driver: "json-file"
@@ -135,7 +134,7 @@ services:
       - ./monitoring/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-legalscout}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-changeme-grafana-2026}
       GF_USERS_ALLOW_SIGN_UP: "false"
     networks:
       - scout

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { DM_Mono, Geist } from 'next/font/google'
+import { DM_Mono, Geist, Space_Grotesk } from 'next/font/google'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { Toaster } from '@/components/ui/sonner'
 import AuthGuard from '@/components/AuthGuard'
@@ -17,6 +17,12 @@ const dmMono = DM_Mono({
   weight: '400'
 })
 
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  variable: '--font-space-grotesk',
+  weight: ['300', '400', '500', '600', '700']
+})
+
 export const metadata: Metadata = {
   title: 'Legal Scout',
   description:
@@ -30,7 +36,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${dmMono.variable} antialiased`}>
+      <body className={`${geistSans.variable} ${dmMono.variable} ${spaceGrotesk.variable} antialiased`}>
         <AuthGuard>
           <NuqsAdapter>{children}</NuqsAdapter>
         </AuthGuard>

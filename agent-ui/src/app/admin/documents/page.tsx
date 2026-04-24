@@ -35,6 +35,7 @@ export default function DocumentsPage() {
   const fetchDocuments = async () => {
     try {
       const res = await authFetch(apiClient.getDashboardData())
+      if (!res.ok) throw new Error(`Request failed: ${res.status}`)
       const data = await res.json()
       setDocuments(data.documents || [])
     } catch (e) {
@@ -114,6 +115,7 @@ export default function DocumentsPage() {
     try {
       const docRef = doc.id || encodeURIComponent(doc.file_name)
       const res = await authFetch(`${API_BASE_URL}/api/dashboard/document/${docRef}`, { method: "DELETE" })
+      if (!res.ok) throw new Error(`Request failed: ${res.status}`)
       const data = await res.json()
       if (data.success) {
         setDocuments(prev => prev.filter(d => d.file_name !== doc.file_name))
@@ -121,7 +123,8 @@ export default function DocumentsPage() {
       } else {
         alert(data.error || "Failed to delete")
       }
-    } catch {
+    } catch (e) {
+      console.error("Delete error:", e)
       alert("Failed to delete document")
     }
   }
@@ -237,7 +240,7 @@ export default function DocumentsPage() {
               </button>
             </div>
           </div>
-          <iframe src={getPreviewUrl(previewDoc.file_name)} className="w-full h-[600px] border-0 bg-white" title="Preview" />
+          <iframe src={getPreviewUrl(previewDoc.file_name)} className="w-full h-[600px] border-0 bg-white" title="Preview" sandbox="allow-same-origin" />
         </div>
       )}
 

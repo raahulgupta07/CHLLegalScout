@@ -63,7 +63,9 @@ def find_matching_templates(search_term: str, documents_dir: str = "/documents")
         from scout.tools.template_analyzer import get_all_templates_from_db
         db_templates = get_all_templates_from_db()
         all_template_names = [t["name"] for t in db_templates]
-    except Exception:
+    except Exception as e:
+        import logging
+        logging.getLogger("legalscout").warning(f"Template DB read failed: {e}")
         all_template_names = []
 
     if not all_template_names:
@@ -75,7 +77,7 @@ def find_matching_templates(search_term: str, documents_dir: str = "/documents")
         }
 
     search_lower = search_term.lower().strip()
-    search_normalized = search_lower.replace(" ", "_").replace("_", " ")
+    search_normalized = search_lower.replace(" ", "_")
 
     matches = []
 

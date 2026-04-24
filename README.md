@@ -246,7 +246,7 @@ PORT=8080
 Internet → Port 80 (or $PORT)
               │
     ┌─────────▼──────────────────────────────────┐
-    │  scout-api                                   │
+    │  scout-api (Node 22 + Python 3.12)          │
     │  (FastAPI + Next.js static frontend)         │
     │                                              │
     │  /api/*        → REST API (50+ endpoints)    │
@@ -269,13 +269,21 @@ Internet → Port 80 (or $PORT)
 
 ## Features
 
-### Chat Interface
+### Chat Interface (DASH-inspired brutalist design)
 - Natural language document requests
 - AI agent with 27+ tools
-- Streaming responses
+- DASH-style CLI terminal blocks showing tool execution (`$ scout exec --agent legal`)
+- Streaming animation with green cursor blink + traffic light dots
+- Answer box with stamp shadow, streaming indicator until complete
+- COPY button on every response
+- LLM-powered auto-suggestions after each response (`POST /api/suggest-followups`)
+- Collapsible trace toggle (`$ trace`) showing tool calls + duration
+- Session tag (`LEGAL SCOUT · 02:08 PM`) at top of chat
+- Status bar (`SYSTEM_ACTIVE | POWERED BY AI AGENT | LEGAL SCOUT · MYANMAR`)
+- User messages right-aligned with dark bubble, agent messages left-aligned with CLI + answer box
 - Option buttons (a/b/c/d/e) for clarification
 - Document download cards
-- Session history
+- Session history with agent name + time ago
 
 ### Template Management (`/admin/templates`)
 - Upload `.docx` Word templates
@@ -328,16 +336,27 @@ Internet → Port 80 (or $PORT)
 - **Emails** — Email sending logs
 
 ### Security
-- JWT authentication with bcrypt password hashing
-- Strong secrets enforced on startup
-- Role-based access control
-- CORS protection (same-origin, no wildcard)
-- File upload path traversal protection
-- SQL injection protection
-- Security headers (HSTS, X-Frame-Options, etc.)
+- JWT authentication on all API endpoints (no unprotected routes)
+- bcrypt password hashing, 10-character minimum passwords
+- Role-based access control (admin, editor, user)
+- CORS protection (same-origin enforced, wildcard explicitly rejected)
+- Path traversal protection on all file-serving endpoints
+- SQL injection protection (parameterized queries, column whitelists on restore)
+- Prompt injection sanitization on AI agent input
+- Login timing attack protection (constant-time responses)
+- File upload size streaming validation
+- Security headers (HSTS, X-Frame-Options, iframe sandboxing, XSS prevention)
 - Activity audit logging
+- Centralized DB connections via `get_db_conn()` (no hardcoded credentials)
+- Centralized OpenRouter URL via `OPENROUTER_BASE_URL` env var
+- Chat input size limit (50KB) enforced on backend
+- All document directories auto-created at startup
+- All exception handlers log warnings (no silent failures)
+- All exceptions logged (no silent failures)
+- All DB connections use try-finally (no connection leaks)
 - Log rotation (10MB x 3 files)
-- Non-root Docker user
+- Non-root Docker user with gosu privilege drop
+- Entrypoint auto-fixes bind-mount permissions
 
 ### Storage
 - Local filesystem (Docker volume, persists across restarts)
@@ -354,10 +373,10 @@ Internet → Port 80 (or $PORT)
 | **Frontend** | Next.js 15, React 18, TypeScript, Tailwind CSS, Zustand, Radix UI, Framer Motion |
 | **Backend** | FastAPI 0.129, Python 3.12, Agno 2.5 (AI agent framework) |
 | **Database** | PostgreSQL 18 + pgvector (vector similarity search) |
-| **AI Models** | GPT-5.4 Mini (chat), Claude 3.5 Haiku (training), text-embedding-3-small — all via OpenRouter |
+| **AI Models** | GPT-5.4 Mini (chat), Gemini 3 Flash (training), Gemini 3.1 Flash Lite (classification), text-embedding-3-small — all via OpenRouter |
 | **Document** | python-docx (Word), LibreOffice (PDF conversion), openpyxl (Excel parsing) |
 | **Auth** | JWT (PyJWT) + bcrypt |
-| **Deploy** | Docker Compose, single multi-stage Dockerfile |
+| **Deploy** | Docker Compose, single multi-stage Dockerfile (Node 22 build stage) |
 | **Monitoring** | Prometheus + Grafana (optional) |
 
 ---
@@ -457,7 +476,7 @@ CHLLegalScout/
 │       ├── uploads/              # DICA PDF uploads
 │       └── previews/             # Cached PDF previews
 ├── compose.yaml                  # Docker Compose
-├── Dockerfile                    # Multi-stage build
+├── Dockerfile                    # Multi-stage build (Node 22 + Python 3.12)
 ├── .env.example                  # Environment template
 ├── DEPLOY.md                     # Deployment guide
 └── CLAUDE.md                     # Technical documentation

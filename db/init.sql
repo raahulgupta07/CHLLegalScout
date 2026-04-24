@@ -248,7 +248,7 @@ ALTER TABLE document_versions
 -- that don't exist in knowledge_sources (which tracks uploaded files only)
 
 -- Check Constraints
-ALTER TABLE users ADD CONSTRAINT chk_users_role CHECK (role IN ('admin', 'user'));
+ALTER TABLE users ADD CONSTRAINT chk_users_role CHECK (role IN ('admin', 'editor', 'user'));
 ALTER TABLE documents ADD CONSTRAINT chk_documents_version CHECK (version > 0);
 ALTER TABLE knowledge_sources ADD CONSTRAINT chk_knowledge_sources_status
     CHECK (status IN ('pending', 'processing', 'complete', 'error'));

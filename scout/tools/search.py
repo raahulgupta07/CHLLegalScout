@@ -1,5 +1,6 @@
 """Content search tool for local file storage."""
 
+import logging
 from pathlib import Path
 
 from agno.tools import tool
@@ -97,8 +98,8 @@ def create_search_content_tool(base_dir: Path):
                     if query_lower in content.lower():
                         content_match = True
                         snippet = _extract_snippet(content, query)
-                except OSError:
-                    pass
+                except OSError as e:
+                    logging.getLogger("legalscout").warning(f"Failed to read file '{filepath}': {e}")
 
             if name_match or content_match:
                 size = _format_size(filepath.stat().st_size)

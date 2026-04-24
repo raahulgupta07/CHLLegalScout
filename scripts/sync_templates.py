@@ -4,11 +4,8 @@ try:
     from psycopg import connect
     from pathlib import Path
 
-    conn = connect(
-        host=os.getenv("DB_HOST", "localhost"), port=5432,
-        dbname=os.getenv("DB_DATABASE", "legalscout"),
-        user=os.getenv("DB_USER", "scout"),
-        password=os.getenv("DB_PASS", ""))
+    from db.connection import get_db_conn
+    conn = get_db_conn()
     conn.autocommit = True
     cur = conn.cursor()
 

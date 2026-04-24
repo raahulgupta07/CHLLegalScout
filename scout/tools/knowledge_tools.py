@@ -7,6 +7,7 @@ for template auto-filling.
 """
 
 import json
+import logging
 from typing import Any, Dict, List, Optional
 from db.connection import get_db_conn
 from scout.tools.knowledge_base import (
@@ -50,6 +51,7 @@ def create_knowledge_tools():
 
     def get_company(company_name: str) -> Dict[str, Any]:
         """Get company details — searches companies table directly with fuzzy match."""
+        conn = None
         try:
             conn = get_db_conn()
             cur = conn.cursor()
@@ -62,7 +64,7 @@ def create_knowledge_tools():
                 LIMIT 1
             """, (f"%{company_name}%",))
             row = cur.fetchone()
-            cur.close(); conn.close()
+            cur.close()
             if row:
                 dirs = row[6] if isinstance(row[6], list) else []
                 mems = row[7] if isinstance(row[7], list) else []
@@ -79,8 +81,11 @@ def create_knowledge_tools():
                         "holding_company": row[11], "foreign_company": row[12],
                     }
                 }
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger("legalscout").warning(f"DB error in get_company: {e}")
+        finally:
+            if conn:
+                conn.close()
         # Fallback to knowledge_lookup
         results = lookup_value("company_name", company_name)
         if not results:
@@ -89,32 +94,40 @@ def create_knowledge_tools():
 
     def get_directors(company_name: str) -> List[Dict[str, Any]]:
         """Get directors for a company — searches companies table directly."""
+        conn = None
         try:
             conn = get_db_conn()
             cur = conn.cursor()
             cur.execute("SELECT company_name_english, directors FROM companies WHERE company_name_english ILIKE %s LIMIT 1", (f"%{company_name}%",))
             row = cur.fetchone()
-            cur.close(); conn.close()
+            cur.close()
             if row and row[1]:
                 dirs = row[1] if isinstance(row[1], list) else []
                 return [{"company": row[0], "data": d} for d in dirs]
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger("legalscout").warning(f"DB error in get_directors: {e}")
+        finally:
+            if conn:
+                conn.close()
         return []
 
     def get_shareholders(company_name: str) -> List[Dict[str, Any]]:
         """Get shareholders for a company — searches companies table directly."""
+        conn = None
         try:
             conn = get_db_conn()
             cur = conn.cursor()
             cur.execute("SELECT company_name_english, members FROM companies WHERE company_name_english ILIKE %s LIMIT 1", (f"%{company_name}%",))
             row = cur.fetchone()
-            cur.close(); conn.close()
+            cur.close()
             if row and row[1]:
                 mems = row[1] if isinstance(row[1], list) else []
                 return [{"company": row[0], "data": m} for m in mems]
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger("legalscout").warning(f"DB error in get_shareholders: {e}")
+        finally:
+            if conn:
+                conn.close()
         return []
 
     def get_template_data(template_name: str) -> Dict[str, Any]:
@@ -187,6 +200,7 @@ def create_knowledge_tools():
         Creates a .docx file with all company details formatted as an official DICA extract.
         Returns download link and company summary."""
         import os, json
+        conn = None
         try:
             from psycopg import connect
             conn = get_db_conn()
@@ -200,7 +214,7 @@ def create_knowledge_tools():
                 FROM companies WHERE company_name_english ILIKE %s
             """, (f"%{company_name}%",))
             row = cur.fetchone()
-            cur.close(); conn.close()
+            cur.close()
 
             if not row:
                 return {"success": False, "error": f"Company '{company_name}' not found in database"}
@@ -292,7 +306,11 @@ def create_knowledge_tools():
                 "message": f"DICA Extract generated for {name}",
             }
         except Exception as e:
+            logging.getLogger("legalscout").warning(f"DB error in generate_dica_extract: {e}")
             return {"success": False, "error": str(e)}
+        finally:
+            if conn:
+                conn.close()
 
     return {
         "search_knowledge": search,

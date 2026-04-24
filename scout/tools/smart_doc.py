@@ -10,16 +10,13 @@ Complete workflow for legal document generation:
 5. Generate final document
 """
 
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from docx import Document
-
-# Context for current document generation (set by generate_document, used by find_replacement)
-_current_template_name: str | None = None
-_current_company_name: str | None = None
 
 from scout.tools.document_tracker import record_document
 
@@ -245,8 +242,8 @@ def prepare_document_data(template_name: str, company_name: str, documents_dir: 
                 })
             companies_data = {"success": True, "companies": companies_list}
             company_result = find_company_data(company_name, companies_data)
-    except Exception:
-        pass
+    except Exception as e:
+        logging.getLogger("legalscout").warning(f"Failed to load company data from DB: {e}")
 
     if not company_result:
         return {"success": False, "error": "No company data in database. Add companies from the admin panel.", "step": "data_loading", "required_fields": required_fields}
@@ -275,8 +272,8 @@ def prepare_document_data(template_name: str, company_name: str, documents_dir: 
                 "when_to_use": template_data.get("when_to_use", ""),
                 "how_to_use": template_data.get("how_to_use", []),
             }
-    except Exception:
-        pass
+    except Exception as e:
+        logging.getLogger("legalscout").warning(f"Failed to load template info: {e}")
 
     normalized_company_data = {}
     for key, value in company_data.items():
@@ -382,10 +379,6 @@ def create_smart_document_tool(documents_dir: str = "/documents", host: str = ""
 
     def generate_document(template_name: str, company_name: str, custom_data: dict = None) -> dict[str, Any]:
         """Generate document with validation workflow."""
-        global _current_template_name, _current_company_name
-        _current_template_name = template_name
-        _current_company_name = company_name
-
         result = prepare_document_data(template_name, company_name, documents_dir)
 
         if not result.get("success"):
@@ -413,8 +406,8 @@ def create_smart_document_tool(documents_dir: str = "/documents", host: str = ""
             tpl_data = get_template_from_db(template_name)
             if tpl_data and isinstance(tpl_data.get("fields"), dict):
                 field_classification = tpl_data["fields"].get("field_classification")
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger("legalscout").warning(f"Failed to load field classification for '{template_name}': {e}")
 
         # If classification exists, separate user_input vs db fields
         if field_classification and not custom_data:
@@ -502,10 +495,16 @@ def create_smart_document_tool(documents_dir: str = "/documents", host: str = ""
             return {"success": False, "error": "Template not found"}
 
         data = result.get("normalized_data", {})
+        PROTECTED_FIELDS = {
+            "company_registration_number", "company_name", "company_name_english",
+            "directors", "members", "shareholders", "status", "company_type",
+            "registered_office", "registered_office_address",
+        }
         if custom_data:
-            data.update(custom_data)
+            safe_custom = {k: v for k, v in custom_data.items() if k.lower() not in PROTECTED_FIELDS}
+            data.update(safe_custom)
 
-        filled_doc = fill_template_with_validation(template_path, data)
+        filled_doc = fill_template_with_validation(template_path, data, template_name=template_name, company_name=company_name)
 
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         # Clean company name - remove registration number, parentheses, etc.
@@ -545,8 +544,8 @@ def create_smart_document_tool(documents_dir: str = "/documents", host: str = ""
         try:
             from app.s3_storage import s3_upload_async
             s3_upload_async(str(output_path))
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger("legalscout").warning(f"S3 upload failed for '{output_path}': {e}")
 
         # Extract placeholders from template BEFORE validation
         template_analysis = extract_placeholders_from_template(template_path)
@@ -724,7 +723,7 @@ def create_smart_document_tool(documents_dir: str = "/documents", host: str = ""
     }
 
 
-def _fill_paragraph_highlighted(paragraph, data: dict[str, Any], placeholder_pattern):
+def _fill_paragraph_highlighted(paragraph, data: dict[str, Any], placeholder_pattern, template_name: str = None, company_name: str = None):
     """Fill placeholders in a paragraph, highlighting replaced text in yellow."""
     from docx.shared import RGBColor
     from docx.oxml.ns import qn
@@ -750,7 +749,7 @@ def _fill_paragraph_highlighted(paragraph, data: dict[str, Any], placeholder_pat
     for match in matches:
         placeholder = (match.group(1) or match.group(2) or match.group(3)).strip().lower()
         replacement = find_replacement(placeholder, data,
-            template_name=_current_template_name, company_name=_current_company_name)
+            template_name=template_name, company_name=company_name)
 
         if match.start() > last_end:
             segments.append((text[last_end:match.start()], None))
@@ -764,7 +763,7 @@ def _fill_paragraph_highlighted(paragraph, data: dict[str, Any], placeholder_pat
         last_end = match.end()
 
     if last_end < len(text):
-        segments.append((text[last_end:], False))
+        segments.append((text[last_end:], None))
 
     # Add runs for each segment
     p_element = paragraph._element
@@ -789,19 +788,19 @@ def _fill_paragraph_highlighted(paragraph, data: dict[str, Any], placeholder_pat
             highlight.set(qn('w:val'), highlight_color)  # "yellow" for filled, "red" for TBD
 
 
-def fill_template_with_validation(template_path: Path, data: dict[str, Any]) -> Document:
+def fill_template_with_validation(template_path: Path, data: dict[str, Any], template_name: str = None, company_name: str = None) -> Document:
     """Fill template with data, highlighting filled values in yellow."""
     doc = Document(str(template_path))
     placeholder_pattern = re.compile(r"\{\{([^}]+)\}\}|\{([^}]+)\}|\[([^\]]+)\]")
 
     for paragraph in doc.paragraphs:
-        _fill_paragraph_highlighted(paragraph, data, placeholder_pattern)
+        _fill_paragraph_highlighted(paragraph, data, placeholder_pattern, template_name=template_name, company_name=company_name)
 
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
                 for paragraph in cell.paragraphs:
-                    _fill_paragraph_highlighted(paragraph, data, placeholder_pattern)
+                    _fill_paragraph_highlighted(paragraph, data, placeholder_pattern, template_name=template_name, company_name=company_name)
 
     return doc
 
@@ -830,22 +829,27 @@ def _get_company_field(company_row: dict, column_path: str) -> str | None:
 
 def _get_field_mapping(template_name: str) -> dict | None:
     """Load learned field_mapping from DB for a template."""
+    conn = None
     try:
         from db.connection import get_db_conn
         conn = get_db_conn()
         cur = conn.cursor()
         cur.execute("SELECT field_mapping FROM templates WHERE name = %s", (template_name,))
         row = cur.fetchone()
-        cur.close(); conn.close()
+        cur.close()
         if row and row[0]:
             return row[0] if isinstance(row[0], dict) else __import__('json').loads(row[0])
-    except Exception:
-        pass
+    except Exception as e:
+        logging.getLogger("legalscout").warning(f"Failed to load field mapping for '{template_name}': {e}")
+    finally:
+        if conn:
+            conn.close()
     return None
 
 
 def _get_company_from_db(company_name: str) -> dict | None:
     """Get full company record directly from companies table."""
+    conn = None
     try:
         from db.connection import get_db_conn
         conn = get_db_conn()
@@ -858,7 +862,7 @@ def _get_company_from_db(company_name: str) -> dict | None:
             FROM companies WHERE company_name_english ILIKE %s LIMIT 1
         """, (f"%{company_name}%",))
         row = cur.fetchone()
-        cur.close(); conn.close()
+        cur.close()
         if row:
             return {
                 "company_name_english": row[0], "company_registration_number": row[1],
@@ -871,8 +875,11 @@ def _get_company_from_db(company_name: str) -> dict | None:
                 "financial_year_end_date": str(row[11]) if row[11] else None,
                 "ultimate_holding_company_name": row[12],
             }
-    except Exception:
-        pass
+    except Exception as e:
+        logging.getLogger("legalscout").warning(f"Failed to load company '{company_name}' from DB: {e}")
+    finally:
+        if conn:
+            conn.close()
     return None
 
 

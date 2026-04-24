@@ -4,6 +4,7 @@ These tools mirror Claude Code's approach: know what exists, understand structur
 before diving into search.
 """
 
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -141,8 +142,8 @@ def create_get_metadata_tool(base_dir: Path):
                     try:
                         line_count = len(target.read_text(encoding="utf-8", errors="replace").splitlines())
                         lines.append(f"**Lines:** {line_count}")
-                    except OSError:
-                        pass
+                    except OSError as e:
+                        logging.getLogger("legalscout").warning(f"Failed to count lines in '{target}': {e}")
 
                 return "\n".join(lines)
 

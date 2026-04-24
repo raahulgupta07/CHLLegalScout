@@ -105,34 +105,34 @@ const SessionItem = ({
     <>
       <div
         className={cn(
-          'group relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 transition-all duration-150',
+          'group relative flex w-full items-center gap-2.5 px-3 py-2.5 transition-all duration-150 font-brutalist',
           isSelected
-            ? 'bg-accent/80 shadow-sm'
-            : 'cursor-pointer hover:bg-accent/50'
+            ? 'bg-[#feffd6]/50 border-l-[2px] border-[#007518]'
+            : 'cursor-pointer hover:bg-[#feffd6]/30 border-l-[2px] border-transparent'
         )}
         onClick={handleGetSession}
       >
         <MessageSquare className={cn(
           'h-4 w-4 shrink-0',
-          isSelected ? 'text-brand' : 'text-muted'
+          isSelected ? 'text-[#007518]' : 'text-[#383832]/40'
         )} />
         <div className="flex min-w-0 flex-1 flex-col">
           <h4
             className={cn(
-              'truncate text-[13px] leading-5',
-              isSelected ? 'font-medium text-primary' : 'text-primary/80'
+              'truncate text-[12px] leading-5 font-bold',
+              isSelected ? 'text-[#383832]' : 'text-[#383832]/70'
             )}
           >
             {title || 'New conversation'}
           </h4>
           {created_at && (
-            <span className="text-[11px] text-muted/70">
-              {timeAgo(created_at)}
+            <span className="text-[10px] text-[#383832]/40 tracking-wider">
+              Legal Scout · {timeAgo(created_at)}
             </span>
           )}
         </div>
         <button
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 opacity-0 transition-opacity duration-150 hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 opacity-0 transition-opacity duration-150 hover:bg-[#be2d06]/10 hover:text-[#be2d06] group-hover:opacity-100"
           onClick={(e) => {
             e.stopPropagation()
             setIsDeleteModalOpen(true)

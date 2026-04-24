@@ -20,10 +20,10 @@ import Link from 'next/link'
 const ENDPOINT_PLACEHOLDER = 'NO ENDPOINT ADDED'
 const SidebarHeader = () => (
     <div className="flex items-center gap-2">
-    <div className="w-6 h-6 rounded-md bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shrink-0">
-      <span className="text-white font-bold text-[10px]">LS</span>
+    <div className="w-6 h-6 bg-[#383832] flex items-center justify-center shrink-0">
+      <span className="text-[#feffd6] font-black text-[10px]">LS</span>
     </div>
-    <span className="text-xs font-medium uppercase text-primary">Legal Scout</span>
+    <span className="text-xs font-black uppercase text-[#383832] tracking-wider font-brutalist">Legal Scout</span>
   </div>
 )
 
@@ -38,7 +38,7 @@ const NewChatButton = ({
     onClick={onClick}
     disabled={disabled}
     size="lg"
-    className="h-9 w-full rounded-xl bg-primary text-xs font-medium text-background hover:bg-primary/80"
+    className="h-9 w-full border-[2px] border-[#383832] bg-[#00fc40] text-xs font-black text-[#383832] uppercase tracking-wider hover:bg-[#00e639] font-brutalist cursor-pointer"
   >
     <Icon type="plus-icon" size="xs" className="text-background" />
     <span className="uppercase">New Chat</span>
@@ -248,7 +248,7 @@ const Sidebar = ({
 
   return (
     <motion.aside
-      className="relative flex h-screen shrink-0 grow-0 flex-col overflow-hidden border-r border-primary/10 px-2 py-3 font-dmmono"
+      className="brutalist relative flex h-screen shrink-0 grow-0 flex-col overflow-hidden border-r border-[#e0e0d8] px-2 py-3 font-brutalist bg-white"
       initial={{ width: '16rem' }}
       animate={{ width: isCollapsed ? '2.5rem' : '16rem' }}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
@@ -280,7 +280,7 @@ const Sidebar = ({
           {(
             <Link
               href="/admin/dashboard"
-              className="flex items-center gap-2 w-full px-3 py-2.5 text-xs font-medium text-white bg-gradient-to-r from-orange-500 to-red-600 rounded-lg hover:from-orange-600 hover:to-red-700 transition-all shadow-lg"
+              className="flex items-center gap-2 w-full px-3 py-2.5 text-xs font-black text-[#feffd6] bg-[#383832] uppercase tracking-wider hover:bg-[#2a2a25] transition-all ink-border stamp-press font-brutalist"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
@@ -317,13 +317,13 @@ const Sidebar = ({
               return (
                 <div className="px-2 py-2">
                   <div className="flex items-center gap-2.5 mb-2">
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shrink-0">
-                      <span className="text-white text-[10px] font-bold">{userName[0]?.toUpperCase()}</span>
+                    <div className="w-7 h-7 bg-[#383832] flex items-center justify-center shrink-0">
+                      <span className="text-[#feffd6] text-[10px] font-black">{userName[0]?.toUpperCase()}</span>
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-medium text-primary truncate">{userName}</p>
                       <div className="flex items-center gap-1">
-                        <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full uppercase ${roleBadge}`}>{userRole}</span>
+                        <span className="tag-label">{userRole}</span>
                       </div>
                     </div>
                   </div>
@@ -333,7 +333,7 @@ const Sidebar = ({
                       localStorage.removeItem("ls_user")
                       window.location.href = "/login"
                     }}
-                    className="flex items-center gap-2 w-full px-2 py-1.5 text-xs font-medium text-red-600 hover:bg-red-500/10 rounded-lg transition-colors"
+                    className="flex items-center gap-2 w-full px-2 py-1.5 text-xs font-black text-[#be2d06] uppercase tracking-wider hover:bg-[#be2d06]/10 transition-colors font-brutalist"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

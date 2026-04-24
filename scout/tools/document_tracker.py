@@ -6,6 +6,7 @@ Tracks generated documents in PostgreSQL database.
 """
 
 import json
+import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from pathlib import Path
@@ -24,13 +25,14 @@ def record_document(
     custom_data: Optional[Dict] = None,
 ) -> bool:
     """Record a generated document to database."""
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
         cur.execute(
             """
-            INSERT INTO documents 
+            INSERT INTO documents
             (template_name, company_name, file_name, file_path, download_url, preview_url, validation_result, custom_data, version, created_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 1, %s)
         """,
@@ -49,23 +51,26 @@ def record_document(
 
         conn.commit()
         cur.close()
-        conn.close()
         return True
     except Exception as e:
-        print(f"Error recording document: {e}")
+        logging.getLogger("legalscout").warning(f"DB error in record_document: {e}")
         return False
+    finally:
+        if conn:
+            conn.close()
 
 
 def get_all_documents(limit: int = 100) -> List[Dict]:
     """Get all documents from database."""
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute(
             """
             SELECT id, template_name, company_name, file_name, download_url, preview_url, version, created_at
-            FROM documents 
-            ORDER BY created_at DESC 
+            FROM documents
+            ORDER BY created_at DESC
             LIMIT %s
         """,
             (limit,),
@@ -73,7 +78,6 @@ def get_all_documents(limit: int = 100) -> List[Dict]:
 
         rows = cur.fetchall()
         cur.close()
-        conn.close()
 
         return [
             {
@@ -89,19 +93,23 @@ def get_all_documents(limit: int = 100) -> List[Dict]:
             for row in rows
         ]
     except Exception as e:
-        print(f"Error getting documents: {e}")
+        logging.getLogger("legalscout").warning(f"DB error in get_all_documents: {e}")
         return []
+    finally:
+        if conn:
+            conn.close()
 
 
 def get_documents_by_company(company_name: str) -> List[Dict]:
     """Get documents for a specific company."""
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute(
             """
             SELECT id, template_name, company_name, file_name, download_url, preview_url, version, created_at
-            FROM documents 
+            FROM documents
             WHERE company_name = %s
             ORDER BY created_at DESC
         """,
@@ -110,7 +118,6 @@ def get_documents_by_company(company_name: str) -> List[Dict]:
 
         rows = cur.fetchall()
         cur.close()
-        conn.close()
 
         return [
             {
@@ -126,57 +133,64 @@ def get_documents_by_company(company_name: str) -> List[Dict]:
             for row in rows
         ]
     except Exception as e:
-        print(f"Error getting documents by company: {e}")
+        logging.getLogger("legalscout").warning(f"DB error in get_documents_by_company: {e}")
         return []
+    finally:
+        if conn:
+            conn.close()
 
 
 def get_document_stats() -> Dict[str, Any]:
     """Get document statistics from database."""
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
         cur.execute("SELECT COUNT(*) FROM documents")
-        total = cur.fetchone()[0]
+        row = cur.fetchone()
+        total = row[0] if row else 0
 
         cur.execute("""
-            SELECT company_name, COUNT(*) as count 
-            FROM documents 
-            GROUP BY company_name 
+            SELECT company_name, COUNT(*) as count
+            FROM documents
+            GROUP BY company_name
             ORDER BY count DESC
         """)
-        by_company = {row[0]: row[1] for row in cur.fetchall()}
+        company_rows = cur.fetchall()
+        by_company = {r[0]: r[1] for r in company_rows}
 
         cur.execute("""
-            SELECT template_name, COUNT(*) as count 
-            FROM documents 
-            GROUP BY template_name 
+            SELECT template_name, COUNT(*) as count
+            FROM documents
+            GROUP BY template_name
             ORDER BY count DESC
         """)
-        by_template = {row[0]: row[1] for row in cur.fetchall()}
+        template_rows = cur.fetchall()
+        by_template = {r[0]: r[1] for r in template_rows}
 
         cur.execute("""
             SELECT id, template_name, company_name, file_name, download_url, preview_url, version, created_at
-            FROM documents 
-            ORDER BY created_at DESC 
+            FROM documents
+            ORDER BY created_at DESC
             LIMIT 5
         """)
+        recent_rows = cur.fetchall()
         recent = [
             {
-                "id": str(row[0]),
-                "template_name": row[1],
-                "company_name": row[2],
-                "file_name": row[3],
-                "download_url": row[4],
-                "preview_url": row[5],
-                "version": row[6],
-                "created_at": row[7].isoformat() if row[7] else None,
+                "id": str(r[0]),
+                "template_name": r[1],
+                "company_name": r[2],
+                "file_name": r[3],
+                "download_url": r[4],
+                "preview_url": r[5],
+                "version": r[6],
+                "created_at": r[7].isoformat() if r[7] else None,
             }
-            for row in cur.fetchall()
+            for r in recent_rows
         ]
 
         cur.close()
-        conn.close()
 
         return {
             "total_documents": total,
@@ -185,13 +199,16 @@ def get_document_stats() -> Dict[str, Any]:
             "recent_documents": recent,
         }
     except Exception as e:
-        print(f"Error getting document stats: {e}")
+        logging.getLogger("legalscout").warning(f"DB error in get_document_stats: {e}")
         return {
             "total_documents": 0,
             "by_company": {},
             "by_template": {},
             "recent_documents": [],
         }
+    finally:
+        if conn:
+            conn.close()
 
 
 def create_document_tracker_tool(host: str = ""):
